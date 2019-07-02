@@ -17,6 +17,23 @@ INCLUDE(FindPythonModule)
 INCLUDE(Utils)
 # include(FindMKL)  # Find MKL module
 
+# Download stuff
+# ----------------------------------------------
+configure_file(downloads/qdldl.txt.in qdldl-download/CMakeLists.txt)
+execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+  RESULT_VARIABLE result
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
+if(result)
+  message(FATAL_ERROR "CMake step for QDLDL failed: ${result}")
+endif()
+# execute_process(COMMAND ${CMAKE_COMMAND} --build .
+#   RESULT_VARIABLE result
+#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
+# if(result)
+#   message(FATAL_ERROR "Build step for googletest failed: ${result}")
+# endif()
+
+
 
 # Detect operating system
 # ----------------------------------------------
