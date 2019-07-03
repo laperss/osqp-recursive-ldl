@@ -1,5 +1,5 @@
 # Minimum version required
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required (VERSION 3.14)
 
 # Project name
 project (osqp)
@@ -22,37 +22,25 @@ INCLUDE(Utils)
 include(FetchContent)
 
 # QDLDL
+message(STATUS "Ensure QDLDL sources")
 FetchContent_Declare(
   qdldl
-  URL https://github.com/oxfordcontrol/qdldl/archive/master.zip
+  GIT_REPOSITORY https://github.com/oxfordcontrol/qdldl.git
+  GIT_TAG v0.1.3
   SOURCE_DIR ${PROJECT_SOURCE_DIR}/lin_sys/direct/qdldl/qdldl_sources
 )
-
 FetchContent_GetProperties(qdldl)
 if(NOT qdldl_POPULATED)
-  message(STATUS "Downloading QDLDL sources")
   FetchContent_Populate(qdldl)
 endif()
 
-
-
-# include("download/qdldl")
-# fetch_qdldl(${PROJECT_SOURCE_DIR}/configure/cmake/download
-#             ${PROJECT_SOURCE_DIR}/lin_sys/direct/qdldl/qdldl_sources)
-# configure_file(downloads/qdldl.txt.in qdldl-download/CMakeLists.txt)
-# execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-#   RESULT_VARIABLE result
-#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
-# if(result)
-#   message(FATAL_ERROR "CMake step for QDLDL failed: ${result}")
-# endif()
-# execute_process(COMMAND ${CMAKE_COMMAND} --build .
-#   RESULT_VARIABLE result
-#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
-# if(result)
-#   message(FATAL_ERROR "Build step for googletest failed: ${result}")
-# endif()
-
+# Google test
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG        release-1.8.1
+  )
+FetchContent_MakeAvailable(googletest)
 
 
 # Detect operating system
@@ -491,18 +479,18 @@ if (UNITTESTS)
         COMMENT "Generating unittests data files using Python"
     )
 
-    # Direct linear solver testing
-    include_directories(tests)
-    add_executable(osqp_tester
-                ${PROJECT_SOURCE_DIR}/tests/osqp_tester.c
-                ${PROJECT_SOURCE_DIR}/tests/osqp_tester.h
-		${PROJECT_SOURCE_DIR}/tests/minunit.h
-                ${test_headers}
-                ${codegen_test_headers})
-    target_link_libraries (osqp_tester osqpstatic)
+    # # Direct linear solver testing
+    # include_directories(tests)
+    # add_executable(osqp_tester
+    #             ${PROJECT_SOURCE_DIR}/tests/osqp_tester.c
+    #             ${PROJECT_SOURCE_DIR}/tests/osqp_tester.h
+    # 		${PROJECT_SOURCE_DIR}/tests/minunit.h
+    #             ${test_headers}
+    #             ${codegen_test_headers})
+    # target_link_libraries (osqp_tester osqpstatic)
 
-    # Add testing
-    include(CTest)
-    enable_testing()
-    add_test(NAME tester COMMAND $<TARGET_FILE:osqp_tester>)
+    # # Add testing
+    # include(CTest)
+    # enable_testing()
+    # add_test(NAME tester COMMAND $<TARGET_FILE:osqp_tester>)
 endif()
