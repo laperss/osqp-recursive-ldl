@@ -19,13 +19,33 @@ INCLUDE(Utils)
 
 # Download stuff
 # ----------------------------------------------
-configure_file(downloads/qdldl.txt.in qdldl-download/CMakeLists.txt)
-execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-  RESULT_VARIABLE result
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
-if(result)
-  message(FATAL_ERROR "CMake step for QDLDL failed: ${result}")
+include(FetchContent)
+
+# QDLDL
+FetchContent_Declare(
+  qdldl
+  URL https://github.com/oxfordcontrol/qdldl/archive/master.zip
+  SOURCE_DIR ${PROJECT_SOURCE_DIR}/lin_sys/direct/qdldl/qdldl_sources
+)
+
+FetchContent_GetProperties(qdldl)
+if(NOT qdldl_POPULATED)
+  message(STATUS "Downloading QDLDL sources")
+  FetchContent_Populate(qdldl)
 endif()
+
+
+
+# include("download/qdldl")
+# fetch_qdldl(${PROJECT_SOURCE_DIR}/configure/cmake/download
+#             ${PROJECT_SOURCE_DIR}/lin_sys/direct/qdldl/qdldl_sources)
+# configure_file(downloads/qdldl.txt.in qdldl-download/CMakeLists.txt)
+# execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+#   RESULT_VARIABLE result
+#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
+# if(result)
+#   message(FATAL_ERROR "CMake step for QDLDL failed: ${result}")
+# endif()
 # execute_process(COMMAND ${CMAKE_COMMAND} --build .
 #   RESULT_VARIABLE result
 #   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/qdldl-download )
