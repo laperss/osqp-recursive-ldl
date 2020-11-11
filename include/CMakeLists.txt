@@ -12,6 +12,7 @@ set(
     "${CMAKE_CURRENT_SOURCE_DIR}/scaling.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/types.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/util.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/recursive_ldl.h"
 )
 
 # Add the KKT update only in normal mode and matrix-updating embedded mode (not mode 1)

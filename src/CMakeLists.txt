@@ -8,6 +8,7 @@ set(
     "${CMAKE_CURRENT_SOURCE_DIR}/proj.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/scaling.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/util.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/recursive_ldl.c"
 )
 
 # Add the KKT update only in normal mode and matrix-updating embedded mode (not mode 1)
@@ -25,6 +26,7 @@ if (NOT DEFINED EMBEDDED)
       APPEND
       osqp_src
       "${CMAKE_CURRENT_SOURCE_DIR}/cs.c"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cs_addon.c"
       "${CMAKE_CURRENT_SOURCE_DIR}/polish.c"
       "${CMAKE_CURRENT_SOURCE_DIR}/lin_sys.c"
     )
