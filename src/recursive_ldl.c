@@ -170,6 +170,7 @@ c_int update_problem_size(qdldl_solver * s, c_int n, c_int m){
     s->L->m = n+m;
     s->n = n;
     s->m = m;
+    return 0;
 }   
 
 
@@ -306,6 +307,8 @@ static c_int pivot_odd( const csc *X, //csc *L,
     }
     
     free(Aij);
+
+    return 0;
 }
 
 
@@ -343,8 +346,11 @@ static c_int pivot_even(const csc *X, //csc *L,
 
     if(X->n != size1)
 	printf("WARNING: X->n != size1\n");
-    
+
+    //print_csc_matrix(X,"X");
     sum_Lnz = QDLDL_etree(X->n, X->p, X->i, iwork, Lnz, etree);
+
+    //for(int i=0;i<X->n;i++) printf("AFTER Lnz[%i] = %i\n", i, Lnz[i]);
     factor_status = QDLDL_factor(X->n, X->p, X->i, X->x,
 				 Lp, Li, Lx,
 				 D, Dinv, Lnz,
@@ -422,6 +428,8 @@ static c_int pivot_even(const csc *X, //csc *L,
     for ( i = 0; i < size1; i++){    
 	Dinv_arr[start_idx + i] = Dinv[i];
     }
+
+    return 0;
 }
 
 
@@ -477,6 +485,8 @@ static c_int pivot_final(const csc *X, //csc *L,
     for ( i = 0; i < num_cols; i++){    
 	Dinv_arr[start_idx + i] = -Dinv[i];
     }
+
+    return 0;
 }
 
 
@@ -547,7 +557,7 @@ static c_int LDL_update_from_pivot(qdldl_solver * s, csc *X_even,
 	    
 	    // Compute the next Xtemp:  -rhoinv - Ai*Ybar_ij
 	    copy_csc_mat_cols(Ai, Aii, 0, 0, nx_ny, nx_nu);
-	    csc_tocsr(nx_ny, nx_nu,
+	    csc_to_csr(nx_ny, nx_nu,
 		      Aii->p, Aii->i, Aii->x,
 		      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);// Aii_transpose = Ai'
 	    Aii_transpose->m = Aii->n; 
@@ -588,7 +598,7 @@ static c_int LDL_update_from_pivot(qdldl_solver * s, csc *X_even,
     // Terminal constraint 
     // A = AN in R(nt * nx)
     copy_csc_mat_cols(AN, Aii, 0, 0, nt, nx);
-    csc_tocsr(nt, nx,
+    csc_to_csr(nt, nx,
 	      Aii->p, Aii->i, Aii->x,
 	      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     Aii_transpose->m = Aii->n; 
@@ -711,7 +721,7 @@ static c_int LDL_factorize_recursive(qdldl_solver * s, csc *X_even,
 
     // Next X value: X(2)  = -rhoinv - A0*Ybar_01  
     copy_csc_mat_cols(A0, Aii, 0, 0, nx_ny, nu);
-    csc_tocsr(nx_ny, nu, Aii->p, Aii->i, Aii->x,
+    csc_to_csr(nx_ny, nu, Aii->p, Aii->i, Aii->x,
 	      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x); 
     Aii_transpose->n = Aii->m; // Number of rows in Aii
     Aii_transpose->m = Aii->n; // Number of rows in Aii
@@ -746,10 +756,10 @@ static c_int LDL_factorize_recursive(qdldl_solver * s, csc *X_even,
 	pivot_even(Xtemp, Ybar_T,  YbartL0,
 		   Aij_f, factor_status, s->L, s->Dinv,
                    nx_nu, nx_ny, &count_L, nu+(nx_ny+nx_nu)*iter + nx_ny, nx, nu, ny );
-	    
+
 	// Compute the next Xtemp:  -rhoinv - Ai*Ybar_ij
 	copy_csc_mat_cols(Ai, Aii, 0, 0, nx_ny, nx_nu); // Aii = Ai
-	csc_tocsr(nx_ny, nx_nu,
+	csc_to_csr(nx_ny, nx_nu,
 		  Aii->p, Aii->i, Aii->x,
 		  Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);// Aii_transpose = Ai'
 	Aii_transpose->m = Aii->n; 
@@ -794,7 +804,7 @@ static c_int LDL_factorize_recursive(qdldl_solver * s, csc *X_even,
     // Terminal constraint 
     // A = AN in R(nt * nx)
     copy_csc_mat_cols(AN, Aii, 0, 0, nt, nx);
-    csc_tocsr(nt, nx,
+    csc_to_csr(nt, nx,
 	      Aii->p, Aii->i, Aii->x,
 	      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     Aii_transpose->m = Aii->n; 
@@ -835,7 +845,7 @@ static c_int LDL_factorize_recursive(qdldl_solver * s, csc *X_even,
 
 }
 
-c_int compute_permutations(qdldl_solver * s, c_int n, c_int m, 
+void compute_permutations(qdldl_solver * s, c_int n, c_int m, 
 			   c_int N, 
 			   const csc * Q0, const csc * Qi, const csc * QN, 
 			   const csc * A0, const csc * Ai, const csc * Aij, const csc * AN){
@@ -854,11 +864,10 @@ c_int compute_permutations(qdldl_solver * s, c_int n, c_int m,
 
     for(i=0;i<QN->n;i++) s->P[count++] = P_count++;
     for(i=0;i<AN->m;i++) s->P[count++] = A_count++;
-
 }
 
 
-c_int compute_KKT_permutations(qdldl_solver * s, c_int n, c_int m,  c_int P_nnz_max, c_int A_nnz_max, 
+void compute_KKT_permutations(qdldl_solver * s, c_int n, c_int m,  c_int P_nnz_max, c_int A_nnz_max, 
                                c_int N, 
                                const csc * Q0, const csc * Qi, const csc * QN, 
                                const csc * A0, const csc * Ai, const csc * Aij, const csc * AN){
@@ -947,12 +956,9 @@ c_int compute_KKT_permutations(qdldl_solver * s, c_int n, c_int m,  c_int P_nnz_
 
 
     }
-
-
-    return 0;
 }
 
-c_int print_P_matrix(qdldl_solver * s){
+void print_P_matrix(qdldl_solver * s){
     printf("* print_P_matrix()\n");
     for(c_int i=0;i<20;i++){
         //s->P[i] = 2*i;
@@ -1311,9 +1317,11 @@ c_int osqp_update_recursive(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
     update_AP_matrices( data_rldl, work->data, data_rldl->N, N);
 
 
-    c_int exitflag =  compute_permutations(work->linsys_solver, N*(data_rldl->nx+data_rldl->nu), N*(data_rldl->nx+data_rldl->ny)+data_rldl->nt, 
+    compute_permutations(work->linsys_solver, N*(data_rldl->nx+data_rldl->nu), N*(data_rldl->nx+data_rldl->ny)+data_rldl->nt, 
 					   N, data_rldl->Q0, data_rldl->Qi, data_rldl->QN,  data_rldl->A0,  data_rldl->Ai, data_rldl->Aij, data_rldl->AN);
     data_rldl->N = N;
+
+    return 0;
 
 }
 
@@ -1516,11 +1524,8 @@ c_int osqp_setup_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rldl, const
 
 
 
-    exitflag =  compute_KKT_permutations(work->linsys_solver, N*(nx+nu), N*(nx+ny)+nt, P_nnz_max, A_nnz_max, 
+    compute_KKT_permutations(work->linsys_solver, N*(nx+nu), N*(nx+ny)+nt, P_nnz_max, A_nnz_max, 
                                          N, Q0, Qi, QN,  A0,  Ai, Aij, AN);
-
-
-    if (exitflag) return osqp_error(exitflag);
 
     // Initialize active constraints structure
     work->pol = c_malloc(sizeof(OSQPPolish));
