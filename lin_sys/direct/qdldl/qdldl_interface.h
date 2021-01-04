@@ -87,6 +87,8 @@ struct qdldl {
  * @return           Exitflag for error (0 if no errors)
  */
 c_int init_linsys_solver_qdldl(qdldl_solver ** sp, const csc * P, const csc * A, c_float sigma, const c_float * rho_vec, c_int polish);
+c_int init_linsys_solver_qdldl_combined(qdldl_solver ** sp, const csc * P, const csc * A, c_float sigma, const c_float * rho_vec, c_int polish, 
+                                        c_int n, c_int m, c_int n_max, c_int m_max, c_int nnz_P_max, c_int nnz_A_max);
 
 /**
  * Solve linear system and store result in b

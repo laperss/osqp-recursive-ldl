@@ -16,12 +16,17 @@ extern "C" {
  */
 typedef struct {
   OSQPData data;
-  c_int    Nmax; ///< Maximum horizon
-  c_int    N;    ///< Current horizon
+  c_int  Nmax;   ///< Maximum horizon
+  c_int     N;   ///< Current base horizon
+  c_int    N0;   ///< Current base horizon
+  c_int    N_recursive_temp;   ///< Current base horizon
+  c_int    Nx;   ///< Current base horizon (of matrix X)
+  c_int Nplus;   ///< Current additional horizon
   c_int    nx;   ///< Number of states
   c_int    ny;   ///< Number of constraints
   c_int    nu;   ///< Number of inputs
   c_int    nt;   ///< Number of terminal constraints
+  c_int nnz[2];  ///< Constant and linear factor for computing number of nonzeros in L
   csc     *A0;   ///< A0 in R(ny+nx * nu)
   csc     *Ai;   ///< Ai in R(ny+nx * nx+nu)
   csc    *Aij;   ///< A0 in R(ny+nx * nx+nu)
@@ -29,10 +34,22 @@ typedef struct {
   csc     *Q0;   ///< Q0 in R(nu * nu)
   csc     *Qi;   ///< Qi in R(nx+nu * nx+nu)
   csc     *QN;   ///< Qi in R(nx * nx)
-  csc *X_even;   ///< Contains earlier pivot points
+  csc **Amats;   ///< Contains pointers to all cost matrices
+  csc **Qmats;   ///< Contains pointers to all cost matrices
+  csc **X_even;   ///< Contains pointers to earlier pivot points
+  double *Ytemp;   ///< The bottom rows U'*P*Linv*Dinv 
+  csc   *Yhat;   ///< The bottom rows U'*P*Linv*Dinv 
+  csc   *Uhat;   ///< The bottom rows U'*P*Linv*Dinv 
+  csc   *Vhat;   ///< The bottom rows V*Q*Minv'*Einv 
+  csc      *Lz;   ///< The lower triangular matriz Q'ZQ=MEM'
+  c_float  *Dzinv;///< The (inverted) diagonal matrix E
+  c_int    *Pz;   ///< The permutation matrix Q
+  csc      *Ly;   ///< The lower triangular matriz Yhat=NFN'
+  c_float  *Dyinv;   ///< The (inverted) diagonal matrix F
+  c_int    *P0;   ///< The permutation matrix P0
 } OSQPDataRLDL;
 
-
+void cleanup_rldl(OSQPDataRLDL * data);
 
 /**
  * Solve quadratic program
@@ -53,8 +70,16 @@ typedef struct {
 
 enum new_linsys_solver_type {  QDLDL_HORIZON_SOLVER=10 };
 c_int osqp_update_recursive(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int N);
-c_int osqp_solve_recursive(OSQPWorkspace *work, c_int N, c_int nx,c_int nu, c_int ny, c_int nt);
+c_int osqp_update_X_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int deltaN);
+c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int deltaN);
+c_int osqp_update_combine_recursive(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int N);
+c_int osqp_solve_recursive(OSQPWorkspace *work);
+c_int osqp_solve_combine_recursive(OSQPWorkspace *work);
 c_int osqp_setup_recursive(OSQPWorkspace** workp, OSQPDataRLDL* data, const OSQPSettings* settings, c_int Nmax, c_int N, c_int nx, c_int nu, c_int ny, c_int nt);
+c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL* data, const OSQPSettings* settings, c_int Nmax, c_int N, c_int Nplus, c_int nx, c_int nu, c_int ny, c_int nt);
+c_int osqp_allocate_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL* data,
+				      const OSQPSettings* settings, c_int Nmax,
+				      c_int nx, c_int nu, c_int ny, c_int nt);
 
 
 c_int osqp_partial_update_bounds(OSQPWorkspace *work, c_int start, c_int stop,

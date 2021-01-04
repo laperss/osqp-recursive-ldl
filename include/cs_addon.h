@@ -41,17 +41,11 @@ extern "C" {
 void copy_mat_offset(csc *A, csc *B, c_int num_col, c_int column_offset, c_int * count);
 void copy_csc_mat_in_place(int An, const c_float *Ax, const c_int *Ai, const c_int*Ap,
                            c_float *Bx, c_int *Bi, c_int*Bp);
-csc* copy_csc_mat_cols(const csc *A, csc *B,
-                       c_int row_start, c_int col_start,
-                       c_int row_stop, c_int col_stop);
+csc* copy_csc_mat_cols(const csc *A, csc *B);
 
-void copy_csc_mat_transpose(const csc *A, c_float * data,
-                                 c_int row_start, c_int col_start,
-                                 c_int row_stop, c_int col_stop);
+void copy_csc_mat_transpose(const csc *A, c_float * data);
 
-void copy_csc_mat_cols_ident(const csc *A, csc *B,
-                             c_int row_start, c_int col_start,
-                             c_int row_stop,   c_int col_stop, c_float offset);
+void copy_csc_mat_cols_ident(const csc *A, csc *B, c_float offset);
 
 /*****************************************************************************
 * Printing (used only in debugging)                                          *
@@ -88,7 +82,7 @@ void csc_to_csr(const c_int n_row, const c_int n_col,
  * where only the upper diagonal is included.
  */
 
-int amub_col_plus_rho_upper_diag (int nrow, int ncol, int values,
+int amub_col_plus_rho_upper_diag (int ncol, int values,
 				                  c_float *Bx, c_int *Bi, c_int*Bp,
 				                  c_float *Ax, c_int *Ai, c_int*Ap,
 				                  c_float *Cx, c_int *Ci, c_int*Cp,

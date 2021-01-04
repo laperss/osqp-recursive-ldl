@@ -7,43 +7,35 @@ void copy_csc_mat_in_place(int An, const c_float *Ax, const c_int *Ai, const c_i
     prea_vec_copy(Ax, Bx, Ap[An]);
 }
 
-csc* copy_csc_mat_cols(const csc *A, csc *B,
-                       c_int row_start, c_int col_start,
-                       c_int row_stop, c_int col_stop) {
+csc* copy_csc_mat_cols(const csc *A, csc *B) {
     if (!B) return OSQP_NULL;
 
     c_int i, column;
     c_int nz = 0;    
-    for (column = col_start; column < col_stop; column++) {
+    for (column = 0; column < A->n; column++) {
         // For every row pointer
-        B->p[column-col_start] = nz;
+        B->p[column] = nz;
         for (i = A->p[column]; i < A->p[column + 1]; i++) {
-            if (A->i[i]>=row_start){
-                B->i[nz] = A->i[i] - row_start;
-                B->x[nz] = A->x[i];
-                nz++;
-            }
+            B->i[nz] = A->i[i];
+            B->x[nz] = A->x[i];
+            nz++;
         }
     }
-    B->p[col_stop-col_start] = nz;
-    B->m = (row_stop-row_start);
-    B->n = (col_stop-col_start);
+    B->p[A->n] = nz;
+    B->m = (A->m);
+    B->n = (A->n);
     return B;
 }
 
 
-void copy_csc_mat_transpose(const csc *A, c_float * data,
-                            c_int row_start, c_int col_start,
-                            c_int row_stop, c_int col_stop) {
-    c_int columns = col_stop-col_start;
+void copy_csc_mat_transpose(const csc *A, c_float * data) {
+    c_int columns = A->n;
     c_int i, column, row;
     c_int nz = 0;
-    for (column = col_start; column < col_stop; column++) {
+    for (column = 0; column < columns; column++) {
         for (i = A->p[column]; i < A->p[column + 1]; i++) {
             row = A->i[i];
-            if (row>=row_start){
-                data[(row-row_start)*columns + (column-col_start)] = A->x[i];
-            }
+            data[row*columns + (column)] = A->x[i];
         }
     }
 }
@@ -76,24 +68,22 @@ void copy_from_offset(const csc *A, csc *B, c_int num_col, c_int column_offset){
 }
 
 
-void copy_csc_mat_cols_ident(const csc *A, csc *B,
-                             c_int row_start, c_int col_start,
-                             c_int row_stop,   c_int col_stop, c_float offset) {
+void copy_csc_mat_cols_ident(const csc *A, csc *B, c_float offset) {
     c_int col, i;
     c_int nz = 0;
     
-    for (col = col_start; col < col_stop; col++) {
-        B->p[col-col_start] = nz;
+    for (col = 0; col < A->n; col++) {
+        B->p[col] = nz;
         for (i = A->p[col]; i < A->p[col + 1]; i++) {
             if (A->i[i] == col) B->x[nz] = A->x[i] + offset;
             else                B->x[nz] = A->x[i];
-            B->i[nz++] = A->i[i] - row_start;
+            B->i[nz++] = A->i[i];
         } 
     }
-    B->p[col_stop-col_start] = nz;
+    B->p[A->n] = nz;
     B->nz = nz;
-    B->n = col_stop-col_start;
-    B->m = row_stop-row_start;
+    B->n = A->n;
+    B->m = A->m;
 }
 
 
@@ -110,7 +100,7 @@ void print_csc_matrix(csc *M, const char *name){
         if (row_start == row_stop) continue;
         else {
             for (i = row_start; i < row_stop; i++) {
-                c_print("%smat(%3u,%3u) = %12.9f;\n", name,
+                c_print("%smat(%3u,%3u) = %23.19f;\n", name,
                         (int)M->i[i]+1, (int)j+1, M->x[k++]);
             }
         }
@@ -119,8 +109,8 @@ void print_csc_matrix(csc *M, const char *name){
 
 
 void csr_to_csc(const c_int  n_row, const c_int  n_col, 
-               const c_int * Ap, const c_int * Aj,  const c_float * Ax,
-               c_int *  Bp,  c_int * Bi, c_float * Bx){
+                const c_int * Ap, const c_int * Aj,  const c_float * Ax,
+                c_int *  Bp,  c_int * Bi, c_float * Bx){
     c_int i, jj,  temp, dest;
     c_int row, col;
     c_int nnz = Ap[n_row];
@@ -160,20 +150,20 @@ void csr_to_csc(const c_int  n_row, const c_int  n_col,
 }   
 
 void csc_to_csr(const c_int n_row, const c_int n_col, 
-               const c_int * Ap, const c_int * Ai, const c_float * Ax,
-               c_int * Bp, c_int * Bj, c_float * Bx){
+                const c_int * Ap, const c_int * Ai, const c_float * Ax,
+                c_int * Bp, c_int * Bj, c_float * Bx){
     csr_to_csc(n_col, n_row, Ap, Ai, Ax, Bp, Bj, Bx);
 }
 
 
-int amub_col_plus_rho_upper_diag (int nrow, int ncol, int values,
+int amub_col_plus_rho_upper_diag (int ncol, int values,
                                   c_float *Bx, c_int *Bi, c_int*Bp,
                                   c_float *Ax, c_int *Ai, c_int*Ap,
                                   c_float *Cx, c_int *Ci, c_int*Cp,
                                   int nzmax,
                                   c_float * rhoinv) {
     // Computes B*A + rho*I
-    // The output matrix has dimensions nrow*ncol
+    // The output matrix has dimensions ncol*ncol
     // Only include the upper diagonal values.    
     c_int ii, jj, jrow, jpos;
     c_int A_ptr, B_ptr;
@@ -291,12 +281,14 @@ int amub_col (int nrow, int ncol, int values,
 
 
 
-int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
+int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col,
+		             c_int values,
                      c_float *Bx, c_int *Bi, c_int*Bp,
                      c_float *Ax, c_int *Ai, c_int*Ap,
                      c_float *Cx, c_int *Ci, c_int*Cp,
                      c_int nzmax, double scale) {
     // Solves B*(A+I), where A is lower diagonal without diagonal entries.
+    //printf("amub_col_plus_I()\n");
     int ii, jj, jrow, jpos;
     c_int A_ptr, B_ptr;
     c_float coeff;
@@ -323,6 +315,7 @@ int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
                 if (len > nzmax) return ii;
                 Ci[len] = jrow;
                 iw[jrow]= len;
+		//printf("I%i: Add new value %.10e\n", ii, scale*Bx[B_ptr]);
                 if (values) Cx[len]  = scale*Bx[B_ptr];
                 len++;
             } else if (values){ // Add to old value
@@ -343,9 +336,11 @@ int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
                     if (len > nzmax) return ii;
                     Ci[len] = jrow;
                     iw[jrow]= len;
+		    //printf("L%i: Add new value %.10e\n", ii, coeff*scale*Bx[B_ptr]);
                     if (values) Cx[len]  = coeff*scale*Bx[B_ptr];
                     len++;
                 } else if (values){ // Add to old value
+		    //printf("L%i: Add to old value %.10e\n", ii, coeff*scale*Bx[B_ptr]);
                     Cx[jpos] += coeff*scale*Bx[B_ptr];
                 }
             }
@@ -353,7 +348,9 @@ int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
         // Reset the work vector
         for (int k=Cp[ii]; k < len; k++) iw[Ci[k]] = -1;
         Cp[ii+1] = len;
-    } 
+    }
+
+
     return 0;
 }
 

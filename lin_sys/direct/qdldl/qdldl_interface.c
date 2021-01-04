@@ -318,6 +318,222 @@ c_int init_linsys_solver_qdldl(qdldl_solver ** sp, const csc * P, const csc * A,
 #endif  // EMBEDDED
 
 
+
+c_int init_linsys_solver_qdldl_combined(qdldl_solver ** sp, const csc * P, const csc * A,
+					c_float sigma, const c_float * rho_vec,
+					c_int polish, 
+                                        c_int n, c_int m, c_int n_max, c_int m_max,
+					c_int nnz_P_max, c_int nnz_A_max){
+
+    // This is the same as the standard OSQP function, except that we add additional space for increasing the problem later on. 
+    // Define Variables
+    csc * KKT_temp;         // Temporary KKT pointer
+    c_int i;                // Loop counter
+    c_int n_plus_m;         // Define n_plus_m dimension
+    c_int n_plus_m_max;     // Define n_plus_m maximum dimension
+    // Allocate private structure to store KKT factorization
+    qdldl_solver *s;
+    s = c_calloc(1, sizeof(qdldl_solver));
+    *sp = s;
+
+    // Size of KKT
+    s->n = n;
+    s->m = m;
+    n_plus_m = s->n + s->m;
+    n_plus_m_max = n_max + m_max;
+
+    // Sigma parameter
+    s->sigma = sigma;
+
+    // Polishing flag
+    s->polish = polish;
+
+    // Link Functions
+    s->solve = &solve_linsys_qdldl;
+
+#ifndef EMBEDDED
+    s->free = &free_linsys_solver_qdldl;
+#endif
+
+#if EMBEDDED != 1
+    s->update_matrices = &update_linsys_solver_matrices_qdldl;
+    s->update_rho_vec = &update_linsys_solver_rho_vec_qdldl;
+#endif
+
+    // Assign type
+    s->type = QDLDL_SOLVER;
+
+    // Set number of threads to 1 (single threaded)
+    s->nthreads = 1;
+
+    // Sparse matrix L (lower triangular)
+    // NB: We don not allocate L completely (CSC elements)
+    //      L will be allocated during the factorization depending on the
+    //      resulting number of elements.
+    s->L = c_malloc(sizeof(csc));
+    s->L->m = n_plus_m;
+    s->L->n = n_plus_m;
+    s->L->nz = -1;
+
+    // Diagonal matrix stored as a vector D
+    s->Dinv = (QDLDL_float *)c_malloc(sizeof(QDLDL_float) * n_plus_m_max);
+    s->D    = (QDLDL_float *)c_malloc(sizeof(QDLDL_float) * n_plus_m_max);
+
+    // Permutation vector P
+    s->P    = (QDLDL_int *)c_malloc(sizeof(QDLDL_int) * n_plus_m_max);
+
+    // Working vector
+    s->bp   = (QDLDL_float *)c_malloc(sizeof(QDLDL_float) * n_plus_m_max);
+
+    // Solution vector
+    s->sol  = (QDLDL_float *)c_malloc(sizeof(QDLDL_float) * n_plus_m_max);
+
+    // Parameter vector
+    s->rho_inv_vec = (c_float *)c_malloc(sizeof(c_float) * m_max);
+
+    // Elimination tree workspace
+    s->etree = (QDLDL_int *)c_malloc(n_plus_m_max * sizeof(QDLDL_int));
+    s->Lnz   = (QDLDL_int *)c_malloc(n_plus_m_max * sizeof(QDLDL_int));
+
+    // Preallocate L matrix (Lx and Li are sparsity dependent)
+    s->L->p = (c_int *)c_malloc((n_plus_m_max+1) * sizeof(QDLDL_int));
+
+    // Lx and Li are sparsity dependent, so set them to
+    // null initially so we don't try to free them prematurely
+    s->L->i = OSQP_NULL;
+    s->L->x = OSQP_NULL;
+
+    // Preallocate workspace
+    s->iwork = (QDLDL_int *)c_malloc(sizeof(QDLDL_int)*(3*n_plus_m_max));
+    s->bwork = (QDLDL_bool *)c_malloc(sizeof(QDLDL_bool)*n_plus_m_max);
+    s->fwork = (QDLDL_float *)c_malloc(sizeof(QDLDL_float)*n_plus_m_max);
+
+    // Form and permute KKT matrix
+    if (polish){ // Called from polish()
+        // Use s->rho_inv_vec for storing param2 = vec(delta)
+        for (i = 0; i < m_max; i++){
+            s->rho_inv_vec[i] = sigma;
+        }
+
+        KKT_temp = form_KKT(P, A, 0, sigma, s->rho_inv_vec, OSQP_NULL, OSQP_NULL, OSQP_NULL, OSQP_NULL, OSQP_NULL);
+
+        // Permute matrix
+        if (KKT_temp)
+            permute_KKT(&KKT_temp, s, OSQP_NULL, OSQP_NULL, OSQP_NULL, OSQP_NULL, OSQP_NULL, OSQP_NULL);
+    }
+    else { // Called from ADMM algorithm
+
+        // Allocate vectors of indices
+        s->PtoKKT = c_malloc((nnz_P_max) * sizeof(c_int));
+        s->AtoKKT = c_malloc((nnz_A_max) * sizeof(c_int));
+        s->rhotoKKT = c_malloc((m_max) * sizeof(c_int));
+
+        // Use p->rho_inv_vec for storing param2 = rho_inv_vec
+        for (i = 0; i < m_max; i++){
+            s->rho_inv_vec[i] = 1. / rho_vec[i];
+        }
+
+	KKT_temp = form_KKT(P, A, 0, sigma, s->rho_inv_vec,
+                            s->PtoKKT, s->AtoKKT,
+                            &(s->Pdiag_idx), &(s->Pdiag_n), s->rhotoKKT);
+	
+
+	//print_csc_matrix(KKT_temp, "KKT"); // The KKT matrix is correct...
+        // Permute matrix
+        if (KKT_temp)
+            permute_KKT(&KKT_temp, s, P->p[n], A->p[n], m, s->PtoKKT, s->AtoKKT, s->rhotoKKT);
+    }
+    // Before here
+    
+    /*
+    print_csc_matrix(KKT_temp, "KKT2"); // The KKT matrix is correct...
+    printf("Px = zeros(%i,1);\n",s->L->n );
+    for (int i=0;i<s->L->n ;i++){
+	printf("Px(%i,1) = %i;\n", i+1, s->P[i]+1);
+    }
+    */
+
+    // Check if matrix has been created
+    if (!KKT_temp){
+#ifdef PRINTING
+        c_eprint("Error forming and permuting KKT matrix");
+#endif
+        free_linsys_solver_qdldl(s);
+        *sp = OSQP_NULL;
+        return OSQP_LINSYS_SOLVER_INIT_ERROR;
+    }
+
+    // Factorize the KKT matrix
+
+    c_int sum_Lnz;
+    c_int factor_status;
+
+    // Compute elimination tree
+    sum_Lnz = QDLDL_etree(KKT_temp->n, KKT_temp->p, KKT_temp->i,
+			  s->iwork, s->Lnz, s->etree);
+
+    if (sum_Lnz < 0){
+	// Error
+#ifdef PRINTING
+	c_eprint("Error in KKT factorization when computing the elimination tree. A is not perfectly upper triangular");
+#endif
+	return sum_Lnz;
+    }
+
+    // Allocate memory for Li and Lx
+    s->L->i = (c_int *)c_malloc(sizeof(c_int)*sum_Lnz*100);
+    s->L->x = (c_float *)c_malloc(sizeof(c_float)*sum_Lnz*100);
+
+    // Factor matrix
+    factor_status = QDLDL_factor(KKT_temp->n, KKT_temp->p, KKT_temp->i, KKT_temp->x,
+                                 s->L->p, s->L->i, s->L->x,
+                                 s->D, s->Dinv, s->Lnz,
+                                 s->etree, s->bwork, s->iwork, s->fwork);
+
+
+    if (factor_status < 0){
+        csc_spfree(KKT_temp);
+        free_linsys_solver_qdldl(s);
+	
+	// Error
+#ifdef PRINTING
+	c_eprint("Error in KKT factorization when computing the nonzero elements. There are zeros in the diagonal matrix");
+#endif
+        return OSQP_NONCVX_ERROR;
+    } else if (factor_status < 0) {
+	// Error: Number of positive elements of D should be equal to nvar
+#ifdef PRINTING
+	c_eprint("Error in KKT factorization when computing the nonzero elements. The problem seems to be non-convex");
+#endif
+	return OSQP_NONCVX_ERROR;
+    }
+
+/*
+    print_csc_matrix(s->L, "Lx");
+    
+    printf("Dx = zeros(%i,1);\n",s->L->n );
+    for (int i=0;i<s->L->n;i++){
+	printf("Dx(%i,1) = %20.19f;\n", i+1, s->Dinv[i]);
+    }
+*/
+    
+    if (polish){ // If KKT passed, assign it to KKT_temp
+        // Polish, no need for KKT_temp
+        csc_spfree(KKT_temp);
+    }
+    else { // If not embedded option 1 copy pointer to KKT_temp. Do not free it.
+        s->KKT = KKT_temp;
+    }
+
+
+    // No error
+    return 0;
+}
+
+
+
+
+
 // Permute x = P*b using P
 void permute_x(c_int n, c_float * x, const c_float * b, const c_int * P) {
     c_int j;
