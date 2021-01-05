@@ -282,58 +282,61 @@ c_int compute_Px(qdldl_solver * s, OSQPDataRLDL * data){
 
 }
 
+/*compute_Vhat: computes V*Q*M^(-T)*E^(-1)
+ * L    = Lower triangular factorization matrix s.t. P'XP = LDL'
+ * Dinv = Inverse of diagonal factorization matrix s.t. P'XP = LDL'
+ * P    = Permutation matrix
+ * Aij  = Part of V = [Aij, 0]
+ * 
+*/
 static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vhat,
 			  csc * Yhat, double * Ytemp){
     c_int ncols = L->n;
     c_int nrows = Aij->m;
-    c_int nz_max = Aij->p[Aij->n];
     c_float* Vtemp= (c_float *)c_calloc(nrows*ncols, sizeof(c_float));
-    c_float* Ytemp2= (c_float *)c_calloc(nrows*nrows, sizeof(c_float));
-    
-    for (int i=0;i<Aij->n;i++){
-        for (int p=Aij->p[i]; p<Aij->p[i+1]; p++){
-            Vtemp[P[i] + ncols*Aij->i[p]] = Aij->x[p];
-        }
+    c_float* Ytemp_copy= (c_float *)c_malloc(nrows*nrows*sizeof(c_float));
+    for (int i=0;i<nrows*nrows;i++){ 
+	Ytemp_copy[i] = Ytemp[i];
     }
 
-    for (int i=0;i<ncols; i++){
+    // Compute V*Q: will have nx elements (assuming Aij=[0,0;-1,0]]
+    for (int i=0;i<Aij->n;i++){
+        for (int p=Aij->p[i]; p<Aij->p[i+1]; p++)
+            Vtemp[P[i] + ncols*Aij->i[p]] = Aij->x[p];
+    }
+
+    // Invert by L
+    for (int i=0; i<ncols; i++){
         for(int p = L->p[i]; p < L->p[i+1]; p++){
 	    for (int k=0; k < nrows; k++){
-                if (fabs(L->x[p]*Vtemp[i + k*ncols])>1e-20){
-                    Vtemp[L->i[p] + k*ncols] -= L->x[p]*Vtemp[i + k*ncols];
-                    nz_max++;
-                }
-            }
+		if (Vtemp[i + k*ncols] != 0.0)
+		    Vtemp[L->i[p] + k*ncols] -= L->x[p]*Vtemp[i + k*ncols];
+	    }
         }
     }
     
-    Vhat->n = ncols;
-    Vhat->m = nrows;
-
+    // Invert by D and add to Vhat
     int nnz = 0;
     Vhat->p[0] = nnz;
     for (int i=0;i<ncols; i++){
         for (int j=0;j<nrows;j++){
-            if (fabs(Vtemp[i + j*ncols])>1e-20){
+            if (Vtemp[i + j*ncols] != 0){
                 Vhat->i[nnz] = j;
                 Vhat->x[nnz++] = Vtemp[i + j*ncols]*Dinv[i];
             }
         }
         Vhat->p[i+1] = nnz; 
     }
+    Vhat->n = ncols;
+    Vhat->m = nrows;
 
-    // Copy Ytemp
-    for (int i=0;i<nrows*nrows;i++){ 
-	Ytemp2[i] = Ytemp[i];
-    }
-    
+    // Continue with computing Yhat: Invert by L'
     for (int i=0;i<ncols;i++){	
         for (int p=Vhat->p[i];p<Vhat->p[i+1];p++){ // For each row
 	    int row = Vhat->i[p];
 	    for (int mcolumn=0;mcolumn<nrows;mcolumn++){ // For each column in new matrix
 		if (fabs(Vtemp[i + mcolumn*ncols])>1e-20){
-		    Ytemp2[mcolumn + row*nrows] =
-			Ytemp2[mcolumn + row*nrows] - Vhat->x[p]*Vtemp[i + mcolumn*ncols];
+		    Ytemp_copy[mcolumn + row*nrows] -=  Vhat->x[p]*Vtemp[i + mcolumn*ncols];
 		}
 	    }
 	}
@@ -343,8 +346,8 @@ static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vha
     Yhat->p[0] = nnz;	
     for (int i=0;i<nrows;i++){ // For every column i in Y
 	for(int j=0;j<=i;j++){ // For every row j in current column
-	    if(fabs(Ytemp2[i + j*nrows])>1e-15){
-	        Yhat->x[nnz] = Ytemp2[i + j*nrows];
+	    if(fabs(Ytemp_copy[i + j*nrows])>1e-20){
+	        Yhat->x[nnz] = Ytemp_copy[i + j*nrows];
 		Yhat->i[nnz++] = j;
 	    }
 	}
@@ -352,7 +355,7 @@ static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vha
     }
 
     free(Vtemp);
-    free(Ytemp2);
+    free(Ytemp_copy);
 }
 
 static c_int compute_Uhat(csc* L, c_float * Dinv, c_int *P, csc * Ai, csc * Uhat, c_float * Yhat){
@@ -436,58 +439,22 @@ static c_int compute_Uhat_solver(qdldl_solver * s, csc * Ai, csc * Uhat, csc * Y
 void update_L_matrix(qdldl_solver * s, OSQPDataRLDL * data, c_int deltaN){
     c_int nx_ny = data->nx+data->ny;
     c_int nx_nu = data->nx+data->nu;
-
-    c_int ncols = s->L->n + nx_nu + nx_ny;
-    // Ncols is incorrect? Fix this... TODO
+    c_int Nnew = data->N + deltaN;
+    // number of columns in the X matrix
+    c_int ncols_x = (data->Nx - 1)*(nx_nu+nx_ny)+data->nu;
     
-    c_int Ashift =  (data->N + deltaN)*(nx_nu);
-    
-    c_int * P0 = (c_int *)c_malloc(sizeof(c_int)*(ncols+100));
-
-    
-
-    // Compute P0: this depends on the number of variables: Ashift
-    c_int P_counter = 0;
-    for (int j=0; j<data->nu;j++) {
-	P0[P_counter++] = j;
-    }
-    for (int i=0; i<data->N + deltaN -1;i++){
-	for (int j=0; j<nx_ny;j++) {
-	    P0[P_counter++] = Ashift   + i*nx_ny + j;
-	}
-	for (int j=0; j<nx_nu;j++) {
-	    P0[P_counter++] = data->nu + i*nx_nu + j;
-	}
-	
-    }
-    for (int j=0; j<nx_ny;j++) {
-	P0[P_counter++] = Ashift   + (data->N + deltaN -1)*nx_ny + j;
-    }
-    for (int j=0; j<data->nx;j++){
-	P0[P_counter++] = data->nu + (data->N + deltaN -1)*nx_nu + j;
-    }
-    for (int j=0; j<data->nt;j++){
-	P0[P_counter++] = Ashift   + (data->N + deltaN)*nx_ny   + j;
-    }
-
-    // Compute final permutation matrix FIX THISS!!!!! TODO
-    int ncols_x = (data->Nx - 1)*(nx_nu+nx_ny)+data->nu;
-//    P_counter = ncols_x;
-    P_counter = 0;
+    // Compute final permutation matrix
+    // First shift the Px matrix, then add Pz and Py
+    c_int P_count = 0;
     for (int j=0;j<ncols_x;j++){
-	if (s->P[P_counter] >= (data->N)*nx_nu )
-	    s->P[P_counter++] +=  deltaN*(nx_nu);
+	if (s->P[P_count] >= (data->N)*nx_nu)
+	    s->P[P_count++] +=  deltaN*(nx_nu);
 	else
-	    P_counter++;
+	    P_count++;
     }
-    for (int j=0;j<data->Lz->n;j++){
-	s->P[P_counter++] = P0[j + ncols_x + nx_ny];
-    }
-    for (int j=0;j<nx_ny;j++){
-	s->P[P_counter++] = P0[ncols_x + j];
-    }
+    for (int j=0;j<data->Lz->n;j++) s->P[P_count++] = data->P0[ncols_x + nx_ny + j];
+    for (int j=0;j<nx_ny;j++)       s->P[P_count++] = data->P0[ncols_x + j];
         
-
     // Lmat: Start by shifting Uhat by nx_nu
     int nnz =0;
     s->L->p[0] = 0;
@@ -499,13 +466,11 @@ void update_L_matrix(qdldl_solver * s, OSQPDataRLDL * data, c_int deltaN){
     }
 
     
+    // Lmat: next, add the Z matrices: This could be left and just extended: TODO
     nnz = s->L->p[ncols_x];
-    // Lmat: next, add the Z matrices: This could also be left and jsut extended: TODO
     for (int i=0; i<data->Lz->n; i++){
-	// Add Dz and Pz
-	s->Dinv[i + ncols_x] = data->Dzinv[i];
-	
 	// Add Lz
+	s->Dinv[i + ncols_x] = data->Dzinv[i];	
 	for (int p=data->Lz->p[i]; p<data->Lz->p[i+1];p++){
 	    s->L->x[nnz] = data->Lz->x[p];
 	    s->L->i[nnz++] = data->Lz->i[p] + ncols_x;
@@ -517,24 +482,16 @@ void update_L_matrix(qdldl_solver * s, OSQPDataRLDL * data, c_int deltaN){
 	}
 	s->L->p[ncols_x + i+1] = nnz;
     }
-
     
-    
-    // Lmat: finally, add the Yhat matrices
-    
+    // Lmat: Add the Yhat matrix to factorization
     for (int i=0; i<data->Ly->n; i++){
-	// Add Dy and Py
-	
 	s->Dinv[i + ncols_x + data->Lz->n] = data->Dyinv[i];
-	
 	for (int p=data->Ly->p[i]; p<data->Ly->p[i+1];p++){
 	    s->L->x[nnz] = data->Ly->x[p];
 	    s->L->i[nnz++] = data->Ly->i[p] + ncols_x + data->Lz->m;
 	}
 	s->L->p[ncols_x + data->Lz->n + i+1] = nnz;
     }
-
-    free(P0);
     
 }
 
@@ -554,58 +511,26 @@ void compute_L_matrix(qdldl_solver * s, OSQPDataRLDL * data){
 	+ data->Ly->p[data->Ly->n]
 	+ deltaN_max*data->nnz[1] + data->nnz[0] + 3000;
 
-    
-    c_int Ashift =  (data->Nx+data->Nplus)*(nx_nu);
-    c_int Xshift =  (data->Nx-1)*(nx_nu) + data->nu;
     // Copy the Lx matrix from the solver.
     // This is needed so that Uhat can be added below L. 
     csc * Lx = s->L;
     c_float * Dx = s->Dinv;
     c_int * Px = s->P;
 
-    c_int ncols = Lx->n + data->Lz->n + data->Ly->n;
-
-    c_int * P0 = (c_int *)c_malloc(sizeof(c_int)*n);
-
-    // Compute P0 and Px0
-    c_int P_counter = 0;
-    for (int j=0; j<data->nu;j++) {
-	P0[P_counter++] = j;
-    }
-    for (int i=0; i<data->N-1;i++){
-	for (int j=0; j<nx_ny;j++) {
-	    P0[P_counter++] = Ashift   + i*nx_ny + j;
-	}
-	for (int j=0; j<nx_nu;j++) {
-	    P0[P_counter++] = data->nu + i*nx_nu + j;
-	}
-	
-    }
-    for (int j=0; j<nx_ny;j++) {
-	P0[P_counter++] = Ashift   + (data->N-1)*nx_ny + j;
-    }
-    for (int j=0; j<data->nx;j++){
-	P0[P_counter++] = data->nu + (data->N-1)*nx_nu + j;
-    }
-    for (int j=0; j<data->nt;j++){
-	P0[P_counter++] = Ashift   + (data->N)*nx_ny   + j;
-    }
-
-
     // New L matrix will contain the complete factorization
     s->L = csc_spalloc(n,  n, nzmax, 1, 0); // Zero out...
 
     // Compute P
     // First nu + (N-1)*(nx+ny+nx+nu) variables belong to X
-    P_counter = 0;
+    c_int P_count = 0;
     for (int j=0;j<Lx->n;j++){
-	s->P[P_counter++] = P0[Px[j]];
+	s->P[P_count++] = data->P0[Px[j]];
     }
     for (int j=0;j<data->Lz->n;j++){
-	s->P[P_counter++] = P0[j + Lx->n + nx_ny];
+	s->P[P_count++] = data->P0[j + Lx->n + nx_ny];
     }
     for (int j=0;j<nx_ny;j++){
-	s->P[P_counter++] = P0[Lx->n+j];
+	s->P[P_count++] = data->P0[Lx->n+j];
     }
     
     int nnz =0;
@@ -662,7 +587,6 @@ void compute_L_matrix(qdldl_solver * s, OSQPDataRLDL * data){
 //	   Lx->n + data->Lz->n + data->Ly->n);
     s->L->n = Lx->n + data->Lz->n + data->Ly->n;
     s->L->m = Lx->n + data->Lz->n + data->Ly->n;
-    free(P0);
     csc_spfree(Lx);
     
 }
@@ -2758,7 +2682,23 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
     }
 
     // Set type of constraints
-    set_rho_vec(work);
+    set_rho_vec(work);   
+
+    
+    // Compute the P0 permutation vector
+    data_rldl->P0 = (c_int *)c_malloc(sizeof(c_int)*(n+m));
+    c_int P_count = 0;
+    c_int cost_count = 0;
+    c_int constr_count = data_rldl->N*(nx_nu);
+    for (int j=0; j<nu;j++) data_rldl->P0[P_count++] = cost_count++;
+    for (int i=0; i<data_rldl->N-1;i++){
+	for (int j=0; j<nx_ny;j++) data_rldl->P0[P_count++] = constr_count++;
+	for (int j=0; j<nx_nu;j++) data_rldl->P0[P_count++] = cost_count++;	
+    }
+    for (int j=0; j<nx_ny;j++) data_rldl->P0[P_count++] = constr_count++;
+    for (int j=0; j<nx;j++)    data_rldl->P0[P_count++] = cost_count++;
+    for (int j=0; j<nt;j++)    data_rldl->P0[P_count++] = constr_count++;
+    
 
 
     // Load linear system solver
@@ -2797,7 +2737,6 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
 
     
     c_int increase_max_var = (nx+ny+nx+nu)*(Nmax-N)+nt;
-    data_rldl->P0 = (c_int *)c_malloc(sizeof(c_int)*Nmax*(nx+ny+nx+nu));
     // Pz'*Z*Pz = Lz*Dz*Lz'
     data_rldl->Lz = csc_spalloc(increase_max_var,
 				increase_max_var,
@@ -2996,8 +2935,25 @@ c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
     work->data->m = n_constr;
     update_problem_size(work->linsys_solver, n_vars, n_constr);
 
-    // Update the Z matrix to give correct horizon
-
+    // Update the P0 permutation vector
+    c_int nx_nu = data_rldl->nx+data_rldl->nu;
+    c_int nx_ny = data_rldl->nx+data_rldl->ny;
+    c_int P_count = data_rldl->nu;
+    c_int cost_count = data_rldl->nu + (data_rldl->N-1)*nx_nu;
+    c_int constr_count =  Nnew*(nx_nu);
+    for (int i=0; i<data_rldl->N-1;i++){
+	for (int j=0; j<nx_ny;j++) data_rldl->P0[P_count++] = constr_count++;
+        P_count+=nx_nu;
+    }
+    for (int i=data_rldl->N-1; i<Nnew -1;i++){
+	for (int j=0; j<nx_ny;j++) data_rldl->P0[P_count++] = constr_count++;
+	for (int j=0; j<nx_nu;j++) data_rldl->P0[P_count++] = cost_count++;	
+    }
+    for (int j=0; j<nx_ny;j++)    data_rldl->P0[P_count++] = constr_count++;
+    for (int j=0; j<data_rldl->nx;j++) data_rldl->P0[P_count++] = cost_count++;
+    for (int j=0; j<data_rldl->nt;j++) data_rldl->P0[P_count++] = constr_count++;
+    
+    // Update the Z matrix with new horizon
     c_int result = LDL_update_from_pivot(data_rldl->Lz, data_rldl->Dzinv, data_rldl->Pz,
 					 data_rldl->X_even,
 					 &data_rldl->Qmats[data_rldl->Nmax-Nnew],
@@ -3008,21 +2964,21 @@ c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
 					 deltaN, Nnew, data_rldl->Nx, data_rldl->Nmax);
 
     
-    // Compute the Vhat = V*Q*Minv'*Einv  and Yhat
+    // Compute Vhat = V*Q*Minv'*Einv  and Yhat = V*Q*Minv'*Einv*Minv*Q'*V'
     compute_Vhat(data_rldl->Lz, data_rldl->Dzinv, data_rldl->Pz, data_rldl->Aij, data_rldl->Vhat,
 		 data_rldl->Yhat, data_rldl->Ytemp);
 
 
-    int nx_ny = data_rldl->nx + data_rldl->ny;
-    c_int factor_status;
-    c_int etree[nx_ny];
-    c_int Lnz[nx_ny];
-    c_int  iwork[nx_ny*3];
-    c_int  bwork[nx_ny];
-    c_float  fwork[nx_ny];
-    c_int sum_Lnz;
     // LDL factorization of Yhat
     
+    c_int   factor_status;
+    c_int   etree[nx_ny];
+    c_int   Lnz[nx_ny];
+    c_int   iwork[nx_ny*3];
+    c_int   bwork[nx_ny];
+    c_float fwork[nx_ny];
+    c_int   sum_Lnz;
+    c_float Dy[nx_ny];
     sum_Lnz = QDLDL_etree(data_rldl->Yhat->n,
 			  data_rldl->Yhat->p,
 			  data_rldl->Yhat->i, iwork, Lnz, etree);    
@@ -3031,7 +2987,6 @@ c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
 	printf("Error in etree\n");
 	return osqp_error(OSQP_DATA_VALIDATION_ERROR);
     }
-    c_float * Dy = (c_float *)c_malloc(sizeof(c_float)*nx_ny);    
     factor_status = QDLDL_factor(data_rldl->Yhat->n,
 				 data_rldl->Yhat->p,
 				 data_rldl->Yhat->i,
@@ -3039,7 +2994,7 @@ c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
 				 data_rldl->Ly->p, data_rldl->Ly->i, data_rldl->Ly->x,
 				 Dy, data_rldl->Dyinv, Lnz,
 				 etree, bwork, iwork, fwork);
-    free(Dy);    
+
     if (factor_status == -1) {
       return osqp_error(OSQP_DATA_VALIDATION_ERROR);
     }
