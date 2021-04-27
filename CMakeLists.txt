@@ -149,7 +149,7 @@ if (NOT MSVC)
     if (DEBUG)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g")
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Ofast")
     endif()
 
     set(CMAKE_C_STANDARD_LIBRARIES "${CMAKE_C_STANDARD_LIBRARIES} -lm")      # Include math

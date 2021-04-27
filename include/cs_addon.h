@@ -37,15 +37,12 @@ extern "C" {
 /**
  *  Copy sparse CSC matrix A to B (B is preallocated, NO MALOC)
  */
+    
+void copy_csc_matrix(const csc *A, csc *B);
 
-void copy_mat_offset(csc *A, csc *B, c_int num_col, c_int column_offset, c_int * count);
-void copy_csc_mat_in_place(int An, const c_float *Ax, const c_int *Ai, const c_int*Ap,
-                           c_float *Bx, c_int *Bi, c_int*Bp);
-csc* copy_csc_mat_cols(const csc *A, csc *B);
+void copy_csc_transpose(const csc *A, c_float * data);
 
-void copy_csc_mat_transpose(const csc *A, c_float * data);
-
-void copy_csc_mat_cols_ident(const csc *A, csc *B, c_float offset);
+void copy_csc_plus_sigma(const csc *A, csc *B, c_float offset);
 
 /*****************************************************************************
 * Printing (used only in debugging)                                          *
@@ -82,42 +79,35 @@ void csc_to_csr(const c_int n_row, const c_int n_col,
  * where only the upper diagonal is included.
  */
 
-int amub_col_plus_rho_upper_diag (int ncol, int values,
-				                  c_float *Bx, c_int *Bi, c_int*Bp,
-				                  c_float *Ax, c_int *Ai, c_int*Ap,
-				                  c_float *Cx, c_int *Ci, c_int*Cp,
-				                  int nzmax,
-				                  c_float * rhoinv);
+int A_times_B_plus_rho(c_int ncol, c_int values,
+	                   c_float *Bx, c_int *Bi, c_int*Bp,
+	                   c_float *Ax, c_int *Ai, c_int*Ap,
+	                   c_float *Cx, c_int *Ci, c_int*Cp,
+	                   c_int nzmax,
+	                   c_float * rhoinv);
 
 /**
  * C = A * B
  */
-int amub_col (int nrow, int ncol, int values,
+int A_times_B(c_int nrow, c_int ncol, c_int values,
 	          c_float *Bx, c_int *Bi, c_int*Bp,
 	          c_float *Ax, c_int *Ai, c_int*Ap,
 	          c_float *Cx, c_int *Ci, c_int*Cp,
-	          int nzmax);
+	          c_int nzmax);
 
 /**
  * C = A * (B + I)
  */
-int amub_col_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
+int A_times_B_plus_I (c_int nrow, c_int ncol, c_int start_col, c_int values,
 	                 c_float *Bx, c_int *Bi, c_int*Bp,
 	                 c_float *Ax, c_int *Ai, c_int*Ap,
 	                 c_float *Cx, c_int *Ci, c_int*Cp,
-		             c_int nzmax, double scale);
-/**
- * C = A * B (row major)
- */
-int amub_row (int nrow, int ncol, int values,
-	          c_float *Ax, c_int *Ai, c_int*Ap,
-	          c_float *Bx, c_int *Bi, c_int*Bp,
-	          c_float *Cx, c_int *Ci, c_int*Cp,
-	          int nzmax);
+		             c_int nzmax, c_float scale);
 
-void subtract_csc_matrix_cols(int start_col, int stop_col, int n, 
-                              c_int * Ap, c_int * Ai, c_float * Ax,
-                              c_int * Bp, c_int * Bi, c_float * Bx );
+
+void A_minus_B(c_int start_col, c_int stop_col, c_int n, 
+               c_int * Ap, c_int * Ai, c_float * Ax,
+               c_int * Bp, c_int * Bi, c_float * Bx );
 
 
 # ifdef __cplusplus

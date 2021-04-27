@@ -20,6 +20,8 @@ void cleanup_rldl(OSQPDataRLDL * data){
 	    }
 	}
 	free(data->X_even);
+	free(data->Amats);
+	free(data->Qmats);
 
 	if (data->Ytemp) {
 	    c_free(data->Ytemp);
@@ -73,38 +75,6 @@ void QDLDL_Lsolve_mat(const QDLDL_int    n,
             }
         }
     }
-}
-
-void print_solver_perm(qdldl_solver * s){
-    printf("\n===============================================\n");
-    for (int i=0;i<10;i++){
-	printf("P[%i] = %i\n", i, s->P[s->n+s->m-10+i]);
-    }
-    printf("\n");
-    
-}
-
-void print_solver_size(qdldl_solver * s){
-    printf("Solver size: %i x %i\n", s->n, s->m);
-
-}
-
-void print_solver_matrices(qdldl_solver * s){
-
-    printf("Dnew = zeros(%i,1);\n",s->L->n);
-    for (int i=0; i<s->L->n; i++){
-	printf("Dnew(%i,1) = %20.18f;\n", i+1, s->Dinv[i]);
-    }
-    printf("Dnew = diag(Dnew);\n");
-    
-    printf("Pnew = zeros(%i,1);\n", s->L->n);
-    for (int i=0; i<s->L->n; i++){
-	printf("Pnew(%i,1) = %i;\n", i+1, s->P[i]+1);
-    }
-
-    printf("\n");
-    
-    print_csc_matrix(s->L, "Lnew");
 }
 
 
@@ -177,14 +147,6 @@ c_int osqp_partial_update_bounds(OSQPWorkspace *work, c_int start, c_int stop,
     // Replace l and u by the new vectors
     prea_vec_copy(l_new, &work->data->l[start], stop-start);
     prea_vec_copy(u_new, &work->data->u[start], stop-start);
-
-    /*
-      printf("bounds = zeros(%i,%i); \n", work->data->m, 2);
-      for (int i=0;i<work->data->m;i++){
-      printf("bounds(%i,:) = [%9.5f,\t%9.5f];\n", i+1, work->data->m, work->data->l[i], work->data->u[i]);
-      }
-    */
-
     
     // Scaling
     if (work->settings->scaling) {
@@ -335,9 +297,7 @@ static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vha
         for (int p=Vhat->p[i];p<Vhat->p[i+1];p++){ // For each row
 	    int row = Vhat->i[p];
 	    for (int mcolumn=0;mcolumn<nrows;mcolumn++){ // For each column in new matrix
-		if (fabs(Vtemp[i + mcolumn*ncols])>1e-20){
-		    Ytemp_copy[mcolumn + row*nrows] -=  Vhat->x[p]*Vtemp[i + mcolumn*ncols];
-		}
+		Ytemp_copy[mcolumn + row*nrows] -=  Vhat->x[p]*Vtemp[i + mcolumn*ncols];
 	    }
 	}
     }
@@ -346,10 +306,8 @@ static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vha
     Yhat->p[0] = nnz;	
     for (int i=0;i<nrows;i++){ // For every column i in Y
 	for(int j=0;j<=i;j++){ // For every row j in current column
-	    if(fabs(Ytemp_copy[i + j*nrows])>1e-20){
-	        Yhat->x[nnz] = Ytemp_copy[i + j*nrows];
-		Yhat->i[nnz++] = j;
-	    }
+	    Yhat->x[nnz] = Ytemp_copy[i + j*nrows];
+	    Yhat->i[nnz++] = j;
 	}
         Yhat->p[i+1] = nnz;	
     }
@@ -384,10 +342,10 @@ static c_int compute_Uhat(csc* L, c_float * Dinv, c_int *P, csc * Ai, csc * Uhat
 	
         for(int p = L->p[i]; p < L->p[i+1]; p++){ 
             for (int k=0; k < nrows; k++){
-                //if (fabs(L->x[p]*Utemp[i + k*ncols])>1e-12){
-		Utemp[L->i[p] + k*ncols] -= L->x[p]*Utemp[i + k*ncols];
-		nz_max++;
-                //}
+		if (Utemp[i + k*ncols] != 0.0){
+		    Utemp[L->i[p] + k*ncols] -= L->x[p]*Utemp[i + k*ncols];
+		    nz_max++;
+		}
             }
         }
     }
@@ -406,7 +364,7 @@ static c_int compute_Uhat(csc* L, c_float * Dinv, c_int *P, csc * Ai, csc * Uhat
 
     for (int i=0;i<ncols; i++){
         for (int j=0;j<nrows;j++){
-            if (fabs(Utemp[i + j*ncols])>1e-20){
+            if (fabs(Utemp[i + j*ncols])>1e-25){
                 Uhat->i[nnz] = j;
                 Uhat->x[nnz++] = Utemp[i + j*ncols]*Dinv[i];
                 //Utemp[i + j*ncols] *= Dinv[i];
@@ -419,7 +377,7 @@ static c_int compute_Uhat(csc* L, c_float * Dinv, c_int *P, csc * Ai, csc * Uhat
         for (int p=Uhat->p[i];p<Uhat->p[i+1];p++){
 	    int row = Uhat->i[p];
 	    for (int mcolumn=0;mcolumn<nrows;mcolumn++){
-		if (fabs(Utemp[i + mcolumn*ncols])>1e-20){
+		if (fabs(Utemp[i + mcolumn*ncols])>1e-25){
 		    Yhat[mcolumn + row*nrows] -= Uhat->x[p]*Utemp[i + mcolumn*ncols];
 		}
 	    }
@@ -509,7 +467,7 @@ void compute_L_matrix(qdldl_solver * s, OSQPDataRLDL * data){
     c_int nzmax = s->L->p[s->L->n] + data->Uhat->p[data->Uhat->n]
 	+ data->Vhat->p[data->Vhat->n]
 	+ data->Ly->p[data->Ly->n]
-	+ deltaN_max*data->nnz[1] + data->nnz[0] + 3000;
+	+ deltaN_max*data->nnz[1] + data->nnz[0] + 6000;
 
     // Copy the Lx matrix from the solver.
     // This is needed so that Uhat can be added below L. 
@@ -654,7 +612,7 @@ static c_int pivot_odd( const csc *X, //csc *L,
     // Current Aij is L'*Ybar (dimension = 22 rows, 12 columns)
     for (i=0; i<size1; i++){ // Loop over each row
 	for (j=0; j<size2; j++){ // Loop over each column
-	    if (fabs(Aij[i + j*size1]) > 1e-10){
+	    if (fabs(Aij[i + j*size1]) > 1e-20){
 		YbartL0->i[k] = j;
 		YbartL0->x[k++] = -Aij[i + size1*j];
 		nz_count++;
@@ -673,7 +631,7 @@ static c_int pivot_odd( const csc *X, //csc *L,
     for (i=0; i<size1; i++){ // Loop over rows
 	Ybar_T->p[i] = nz_count;
 	for (j=0; j<nx; j++){ // With is size2, but zeros after nx, ignore these
-	    if (fabs(Aij[i + j*size1]) > 1e-10){
+	    if (fabs(Aij[i + j*size1]) > 1e-20){
 		Ybar_T->i[k] = j;
 		Ybar_T->x[k++] = Aij[i + j*size1];
 		nz_count++;
@@ -691,7 +649,7 @@ static c_int pivot_odd( const csc *X, //csc *L,
     // TODO: Remember that Ybar is supposed to be negative here...
     // nrows=nx (only consider first nx rows), ncols, values (bool)
     // Because of the triangular shape - only last nx rows are included
-    amub_col_plus_I (nx, size1, ny, 1,
+    A_times_B_plus_I (nx, size1, ny, 1,
                      Ybar_T->x, Ybar_T->i, Ybar_T->p,
                      Lx, Li, Lp,
                      YbartL0->x, YbartL0->i, YbartL0->p,
@@ -822,7 +780,7 @@ static c_int pivot_even(const csc *X, //csc *L,
     YbartL0->n = size1;
     YbartL0->m = size2;
     
-    amub_col_plus_I (size2, size1, 0, 1,
+    A_times_B_plus_I (size2, size1, 0, 1,
 		             Ybar_T->x, Ybar_T->i, Ybar_T->p,
 		             Lx, Li, Lp,
 		             YbartL0->x, YbartL0->i, YbartL0->p,
@@ -1051,14 +1009,14 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 	    Lmat_col += Xtemp->n;
 	    
 	    // Compute next Xtemp: Qi - Ybar_T + I*sigma
-	    copy_csc_mat_cols_ident(Qmats[iter], Xtemp, sigma);
-	    subtract_csc_matrix_cols(ny, ny+nx, Xtemp->n, 
+	    copy_csc_plus_sigma(Qmats[iter], Xtemp, sigma);
+	    A_minus_B(ny, ny+nx, Xtemp->n, 
 				     Xtemp->p, Xtemp->i, Xtemp->x,
 				     Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
 	    // Copy next RHS (Ai) to Aij_f
 	    memset(Aij_f, 0, Amats[iter]->n*Amats[iter]->m*sizeof(c_float));
-	    copy_csc_mat_transpose(Amats[iter], Aij_f);
+	    copy_csc_transpose(Amats[iter], Aij_f);
 	    
 	    if (pivot_even(Xtemp, Ybar_T,  YbartL0,
 			   Aij_f, Lmat, Dinv,
@@ -1071,7 +1029,7 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 	    Lmat_col += Xtemp->n;
 	    // Compute the next Xtemp:  -rhoinv - Ai*Ybar_ij
 	    for(i=0;i<Amats[iter]->m;i++) Pmat[perm_count++] = A_count++; // Permutation: Ai	    
-	    copy_csc_mat_cols(Amats[iter], Aii);
+	    copy_csc_matrix(Amats[iter], Aii);
 	    csc_to_csr(nx_ny, nx_nu,
 		       Aii->p, Aii->i, Aii->x,
 		       Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);// Aii_transpose = Ai'
@@ -1079,7 +1037,7 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 	    Xtemp->n = nx_ny;
 	    Xtemp->m = nx_ny;
 
-	    status = amub_col_plus_rho_upper_diag(nx_ny, 1,
+	    status = A_times_B_plus_rho(nx_ny, 1,
 						  Ybar_T->x, Ybar_T->i, Ybar_T->p,
 						  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
 						  Xtemp->x, Xtemp->i, Xtemp->p,
@@ -1103,13 +1061,13 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
     Lmat_col += Xtemp->n;
     
     // Terminal cost  ------------------------------------------------
-    copy_csc_mat_cols_ident(Qmats[Nnew], Xtemp, sigma);
-    subtract_csc_matrix_cols(ny, ny+nx, nx, 
+    copy_csc_plus_sigma(Qmats[Nnew], Xtemp, sigma);
+    A_minus_B(ny, ny+nx, nx, 
 			     Xtemp->p, Xtemp->i, Xtemp->x,
 			     Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
     memset(Aij_f, 0, nt*nx*sizeof(c_float));
-    copy_csc_mat_transpose(Amats[Nnew], Aij_f);
+    copy_csc_transpose(Amats[Nnew], Aij_f);
     
     pivot_even(Xtemp, Ybar_T,  YbartL0,
 	       Aij_f, Lmat, Dinv,
@@ -1119,12 +1077,12 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 
 
     // Terminal constraint -------------------------------------------
-    copy_csc_mat_cols(Amats[Nnew], Aii);
+    copy_csc_matrix(Amats[Nnew], Aii);
     csc_to_csr(nt, nx,
 	      Aii->p, Aii->i, Aii->x,
 	      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     
-    status = amub_col_plus_rho_upper_diag(nt, 1,
+    status = A_times_B_plus_rho(nt, 1,
 					  Ybar_T->x, Ybar_T->i, Ybar_T->p,
 					  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
 					  Xtemp->x, Xtemp->i, Xtemp->p,
@@ -1215,9 +1173,9 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
     // PIVOT POINT 0 =================================
     Lmat->p[0] = 0;
     //for(i=0;i<Q0->n;i++) Pmat[perm_count++] = P_count++; //  Q0 (even) nu
-    copy_csc_mat_transpose(Amats[0], Aij_f);
+    copy_csc_transpose(Amats[0], Aij_f);
     // Assuming no non-zero elements on diagonal...
-    copy_csc_mat_cols_ident(Qmats[0], Xtemp, sigma);
+    copy_csc_plus_sigma(Qmats[0], Xtemp, sigma);
 
     pivot_even(Xtemp, Ybar_T,  YbartL0,
 	       Aij_f, Lmat, Dinv,
@@ -1235,7 +1193,7 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
     // Computes new X = Ybar_T*Aii_transpose + rhoinv*I
     Xtemp->n = Amats[0]->m;
     Xtemp->m = Amats[0]->m;
-    status = amub_col_plus_rho_upper_diag(Amats[0]->m, 1,
+    status = A_times_B_plus_rho(Amats[0]->m, 1,
 					  Ybar_T->x, Ybar_T->i, Ybar_T->p,
 					  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
 					  Xtemp->x, Xtemp->i, Xtemp->p,
@@ -1260,15 +1218,15 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
 
 	// Compute next Xtemp: Qi - Ybar_T
 	//for(i=0;i<Qi->n;i++) Pmat[perm_count++] = P_count++; // Permutation: Qi (even) add Qi->n
-	copy_csc_mat_cols_ident(Qmats[iter], Xtemp, sigma);
+	copy_csc_plus_sigma(Qmats[iter], Xtemp, sigma);
 	// Subtract bottom nx rows of Ybar_T from top of X
 	// Ybar_T = Ybar given in row major format - bottom nx rows = rightmost nx?
-	subtract_csc_matrix_cols(ny, ny+nx, Xtemp->n, 
+	A_minus_B(ny, ny+nx, Xtemp->n, 
 				 Xtemp->p, Xtemp->i, Xtemp->x,
 				 Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
 	memset(Aij_f, 0, Amats[iter]->n*Amats[iter]->m*sizeof(c_float));
-	copy_csc_mat_transpose(Amats[iter], Aij_f);
+	copy_csc_transpose(Amats[iter], Aij_f);
 	        
 	pivot_even(Xtemp, Ybar_T,  YbartL0,
 		   Aij_f, Lmat, Dinv,
@@ -1284,7 +1242,7 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
 
 	Xtemp->n = Amats[iter]->m;
 	Xtemp->m = Amats[iter]->m;
-	status = amub_col_plus_rho_upper_diag(Amats[iter]->m, 1,
+	status = A_times_B_plus_rho(Amats[iter]->m, 1,
 					      Ybar_T->x, Ybar_T->i, Ybar_T->p,
 					      Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
 					      Xtemp->x, Xtemp->i, Xtemp->p,
@@ -1297,7 +1255,6 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
         // Save all even X for later updates
 	X_even[N0+iter] = copy_csc_mat(Xtemp);
 	
-        //copy_mat_offset(X_even, Xtemp, nx_ny, (N0+iter)*nx_ny, &nz_xeven);
     }
     nnz_params[1] = Lmat_ptr - nnz_params[0];
 
@@ -1308,12 +1265,12 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
     Lmat_col += Xtemp->n;
     // Terminal cost constraint -------------------------------------
     //for(i=0;i<QN->n;i++) Pmat[perm_count++] = P_count++; // (even) add nx
-    copy_csc_mat_cols_ident(Qmats[Niter], Xtemp, sigma);
-    subtract_csc_matrix_cols(ny, ny+nx, nx, Xtemp->p, Xtemp->i, Xtemp->x,
+    copy_csc_plus_sigma(Qmats[Niter], Xtemp, sigma);
+    A_minus_B(ny, ny+nx, nx, Xtemp->p, Xtemp->i, Xtemp->x,
 			                 Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
     memset(Aij_f, 0, nt*nx*sizeof(c_float));
-    copy_csc_mat_transpose(Amats[Niter], Aij_f);
+    copy_csc_transpose(Amats[Niter], Aij_f);
     
     pivot_even(Xtemp, Ybar_T,  YbartL0,
 	           Aij_f, Lmat, Dinv,
@@ -1333,7 +1290,7 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
                Amats[Niter]->p, Amats[Niter]->i, Amats[Niter]->x,
                Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     
-    amub_col_plus_rho_upper_diag(nt, 1,
+    A_times_B_plus_rho(nt, 1,
 				 Ybar_T->x, Ybar_T->i, Ybar_T->p,
 				 Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
 				 Xtemp->x, Xtemp->i, Xtemp->p,
@@ -2361,7 +2318,7 @@ c_int osqp_setup_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rldl, const
     }
     data_rldl->Qmats[N] = QN;
     data_rldl->Amats[N] = AN;
-    
+
     // SET SIZES OF ALL MATRICES =======================================================
 
     data_rldl->X_even = c_malloc(Nmax*sizeof(csc*));
@@ -2733,7 +2690,7 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
     }
     data_rldl->Qmats[Nmax] = QN;
     data_rldl->Amats[Nmax] = AN;
-    
+       
 
     
     c_int increase_max_var = (nx+ny+nx+nu)*(Nmax-N)+nt;
@@ -2827,10 +2784,6 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
     // TODO: sould be N
     update_AP_matrices( data_rldl, work->data, data_rldl->Nx-1, (data_rldl->N));
 
-    // TODO, remove these
-    set_rho_vec(work);
-
-
     if (exitflag) {
       return osqp_error(exitflag);
     }
@@ -2900,8 +2853,6 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
     }
 # endif /* ifndef PROFILING */
     if (Dy) free(Dy);
-    //print_solver_matrices(work->linsys_solver);    
-    
 
     // Return exit flag
     return 0;
