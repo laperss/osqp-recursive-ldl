@@ -250,7 +250,7 @@ c_int compute_Px(qdldl_solver * s, OSQPDataRLDL * data){
  * P    = Permutation matrix
  * Aij  = Part of V = [Aij, 0]
  * 
-*/
+ */
 static c_int compute_Vhat(csc* L, c_float * Dinv, c_int *P, csc * Aij, csc * Vhat,
 			  csc * Yhat, double * Ytemp){
     c_int ncols = L->n;
@@ -594,8 +594,8 @@ static c_int pivot_odd( const csc *X, //csc *L,
 				 etree, bwork, iwork, fwork);
     
     if (!factor_status){
-	    printf("ERROR IN FACTORIZATION: %i\n", factor_status);
-	    return factor_status;
+	printf("ERROR IN FACTORIZATION: %i\n", factor_status);
+	return factor_status;
     }
     
     // SOLVE MATRIX EQUATION for Ybar_T --------------
@@ -650,15 +650,12 @@ static c_int pivot_odd( const csc *X, //csc *L,
     // nrows=nx (only consider first nx rows), ncols, values (bool)
     // Because of the triangular shape - only last nx rows are included
     A_times_B_plus_I (nx, size1, ny, 1,
-                     Ybar_T->x, Ybar_T->i, Ybar_T->p,
-                     Lx, Li, Lp,
-                     YbartL0->x, YbartL0->i, YbartL0->p,
-                     nx*size1, -1.0);
+		      Ybar_T->x, Ybar_T->i, Ybar_T->p,
+		      Lx, Li, Lp,
+		      YbartL0->x, YbartL0->i, YbartL0->p,
+		      nx*size1, -1.0);
 
-    //print_csc_matrix(YbartL0,"YbartL0");
     // Add Ltemp and Y0*Ltemp to large L matrix
-    // Error first time accessing each.......
-    //printf("Start adding to Lz: %i\n", *count_L);
     for (i=0; i<size1; i++){
 	for (j=Lp[i]; j<Lp[i+1]; j++){
 	    if (fabs(Lx[j])>1e-10){
@@ -730,8 +727,8 @@ static c_int pivot_even(const csc *X, //csc *L,
 				 etree, bwork, iwork, fwork);
 
     if (!factor_status){
-	    printf("ERROR IN FACTORIZATION: %i\n", factor_status);
-	    return factor_status;
+	printf("ERROR IN FACTORIZATION: %i\n", factor_status);
+	return factor_status;
     }
 
     
@@ -781,31 +778,31 @@ static c_int pivot_even(const csc *X, //csc *L,
     YbartL0->m = size2;
     
     A_times_B_plus_I (size2, size1, 0, 1,
-		             Ybar_T->x, Ybar_T->i, Ybar_T->p,
-		             Lx, Li, Lp,
-		             YbartL0->x, YbartL0->i, YbartL0->p,
-		             size1*size2, 1.0);
+		      Ybar_T->x, Ybar_T->i, Ybar_T->p,
+		      Lx, Li, Lp,
+		      YbartL0->x, YbartL0->i, YbartL0->p,
+		      size1*size2, 1.0);
 
     // Add the L0 and Ybar_TL0 values to the L matrix
     for (i=0; i<size1; i++){
-	    // Add L matrix
-	    for (j=Lp[i]; j<Lp[i+1]; j++){
-	        if (fabs(Lx[j])>1e-10){
-		    L_csc->i[*count_L] = start_idx + Li[j];
-		    L_csc->x[(*count_L)++] = Lx[j];
-	        }
+	// Add L matrix
+	for (j=Lp[i]; j<Lp[i+1]; j++){
+	    if (fabs(Lx[j])>1e-10){
+		L_csc->i[*count_L] = start_idx + Li[j];
+		L_csc->x[(*count_L)++] = Lx[j];
 	    }
-	    // Add Aii*Ybar matrix under
-	    for (j=YbartL0->p[i]; j<YbartL0->p[i+1]; j++){
-	        if (fabs(YbartL0->x[j])>1e-10){	    
-		        L_csc->i[*count_L] = start_idx + size1 + YbartL0->i[j];		
-		        L_csc->x[(*count_L)++] = YbartL0->x[j];
-	        }
+	}
+	// Add Aii*Ybar matrix under
+	for (j=YbartL0->p[i]; j<YbartL0->p[i+1]; j++){
+	    if (fabs(YbartL0->x[j])>1e-10){	    
+		L_csc->i[*count_L] = start_idx + size1 + YbartL0->i[j];		
+		L_csc->x[(*count_L)++] = YbartL0->x[j];
 	    }
-	    L_csc->p[start_idx  + i + 1] = *count_L;
+	}
+	L_csc->p[start_idx  + i + 1] = *count_L;
     }
     for ( i = 0; i < size1; i++){    
-	    Dinv_arr[start_idx + i] = Dinv[i];
+	Dinv_arr[start_idx + i] = Dinv[i];
     }
 
     return 0;
@@ -848,25 +845,25 @@ static c_int pivot_final(const csc *X, //csc *L,
     //L->n = X->n;
     //L->m = X->m;
     /*
-    c_float *info;
-    c_int amd_status;
-    c_int  pP[num_cols]; // Permutation matrix
-    c_int * Pinv;
-    csc *Xnew;    
-#ifdef DLONG
-    amd_status = amd_l_order(X->n, X->p, X->i, pP, (c_float *)OSQP_NULL, info);
-#else
-    amd_status = amd_order(X->n, X->p, X->i, pP, (c_float *)OSQP_NULL, info);
-#endif
+      c_float *info;
+      c_int amd_status;
+      c_int  pP[num_cols]; // Permutation matrix
+      c_int * Pinv;
+      csc *Xnew;    
+      #ifdef DLONG
+      amd_status = amd_l_order(X->n, X->p, X->i, pP, (c_float *)OSQP_NULL, info);
+      #else
+      amd_status = amd_order(X->n, X->p, X->i, pP, (c_float *)OSQP_NULL, info);
+      #endif
     
-    Pinv = csc_pinv(pP, X->n);   
-    Xnew = csc_symperm(X, Pinv, OSQP_NULL, 1);  // Xnew = PXP'
+      Pinv = csc_pinv(pP, X->n);   
+      Xnew = csc_symperm(X, Pinv, OSQP_NULL, 1);  // Xnew = PXP'
 
-    for(i=0;i<num_cols;i++) {
-	    P[perm_count[0] + i] = A_count[0] +pP[i]; // + pP[i];
-    }
-    A_count[0] += num_cols;
-    perm_count[0] += num_cols;
+      for(i=0;i<num_cols;i++) {
+      P[perm_count[0] + i] = A_count[0] +pP[i]; // + pP[i];
+      }
+      A_count[0] += num_cols;
+      perm_count[0] += num_cols;
     */
 
 
@@ -887,39 +884,39 @@ static c_int pivot_final(const csc *X, //csc *L,
     // P = [0, 3, 4, 5, 2, 6]
     // Meaning: first comes row number 0, then row number 3, then number 4
     /*
-    for (i=0; i<nx; i++){
-	nnz = 0;
-	pointer = -1;
-	for (j = L_csc->p[start_idx-nx+i]; j<L_csc->p[start_idx-nx+i+1]; j++){
-	    if(L_csc->i[j]>= start_idx){
-		if(nnz==0) pointer = j;		
-		Xi[nnz] = L_csc->i[j];
-		Pi[nnz] = Pinv[L_csc->i[j]-start_idx]+start_idx;
-	        Xx[nnz] = L_csc->x[j];
-		nnz++;
-	    }
-	}
-	if (nnz>0){
-	    added = 0;
-	    for (int k=0;k<num_cols;k++){
-		if(added < nnz){
-		    for (j = 0; j<nnz; j++){
-			if (start_idx+k==Pi[j]){
-			    // Which pointer should  use?
-			    L_csc->i[pointer] = Pi[j];
-			    L_csc->x[pointer] = Xx[j];
-			    added++;
-			    pointer++;
-			}
-		    }
-		}
-	    }
-	}
+      for (i=0; i<nx; i++){
+      nnz = 0;
+      pointer = -1;
+      for (j = L_csc->p[start_idx-nx+i]; j<L_csc->p[start_idx-nx+i+1]; j++){
+      if(L_csc->i[j]>= start_idx){
+      if(nnz==0) pointer = j;		
+      Xi[nnz] = L_csc->i[j];
+      Pi[nnz] = Pinv[L_csc->i[j]-start_idx]+start_idx;
+      Xx[nnz] = L_csc->x[j];
+      nnz++;
+      }
+      }
+      if (nnz>0){
+      added = 0;
+      for (int k=0;k<num_cols;k++){
+      if(added < nnz){
+      for (j = 0; j<nnz; j++){
+      if (start_idx+k==Pi[j]){
+      // Which pointer should  use?
+      L_csc->i[pointer] = Pi[j];
+      L_csc->x[pointer] = Xx[j];
+      added++;
+      pointer++;
+      }
+      }
+      }
+      }
+      }
 	
-    }
+      }
     */
     if (!factor_status){
-	    printf("ERROR IN FACTORIZATION: %i\n", factor_status);
+	printf("ERROR IN FACTORIZATION: %i\n", factor_status);
 	return factor_status;
     }
     // Save to L matrix
@@ -1011,8 +1008,8 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 	    // Compute next Xtemp: Qi - Ybar_T + I*sigma
 	    copy_csc_plus_sigma(Qmats[iter], Xtemp, sigma);
 	    A_minus_B(ny, ny+nx, Xtemp->n, 
-				     Xtemp->p, Xtemp->i, Xtemp->x,
-				     Ybar_T->p, Ybar_T->i, Ybar_T->x );
+		      Xtemp->p, Xtemp->i, Xtemp->x,
+		      Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
 	    // Copy next RHS (Ai) to Aij_f
 	    memset(Aij_f, 0, Amats[iter]->n*Amats[iter]->m*sizeof(c_float));
@@ -1038,10 +1035,10 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
 	    Xtemp->m = nx_ny;
 
 	    status = A_times_B_plus_rho(nx_ny, 1,
-						  Ybar_T->x, Ybar_T->i, Ybar_T->p,
-						  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
-						  Xtemp->x, Xtemp->i, Xtemp->p,
-						  nx_ny*nx_ny/2+nx_ny, &rho_inv_vec[(iter)*nx_ny]);
+					Ybar_T->x, Ybar_T->i, Ybar_T->p,
+					Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
+					Xtemp->x, Xtemp->i, Xtemp->p,
+					nx_ny*nx_ny/2+nx_ny, &rho_inv_vec[(iter)*nx_ny]);
 	    if (status) {
 		printf("Could not complete X =  -rhoinv - Ai*Ybar_ij\n");
 		return -1;
@@ -1063,8 +1060,8 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
     // Terminal cost  ------------------------------------------------
     copy_csc_plus_sigma(Qmats[Nnew], Xtemp, sigma);
     A_minus_B(ny, ny+nx, nx, 
-			     Xtemp->p, Xtemp->i, Xtemp->x,
-			     Ybar_T->p, Ybar_T->i, Ybar_T->x );
+	      Xtemp->p, Xtemp->i, Xtemp->x,
+	      Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
     memset(Aij_f, 0, nt*nx*sizeof(c_float));
     copy_csc_transpose(Amats[Nnew], Aij_f);
@@ -1079,14 +1076,14 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
     // Terminal constraint -------------------------------------------
     copy_csc_matrix(Amats[Nnew], Aii);
     csc_to_csr(nt, nx,
-	      Aii->p, Aii->i, Aii->x,
-	      Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
+	       Aii->p, Aii->i, Aii->x,
+	       Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     
     status = A_times_B_plus_rho(nt, 1,
-					  Ybar_T->x, Ybar_T->i, Ybar_T->p,
-					  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
-					  Xtemp->x, Xtemp->i, Xtemp->p,
-					  nt*nt/2+nt, &rho_inv_vec[(Nmax-1)*nx_ny]);
+				Ybar_T->x, Ybar_T->i, Ybar_T->p,
+				Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
+				Xtemp->x, Xtemp->i, Xtemp->p,
+				nt*nt/2+nt, &rho_inv_vec[(Nmax-1)*nx_ny]);
     if (status) {
 	printf("Could not complete terminal X =  -rhoinv - Ai*Ybar_ij\n");
 	return -1;
@@ -1188,20 +1185,20 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
     for(i=0;i<Amats[0]->m;i++) Pmat[perm_count++] = A_count++; // Permutation: A0
 
     csc_to_csr(Amats[0]->m, Amats[0]->n, Amats[0]->p, Amats[0]->i, Amats[0]->x,
-	           Aii_transpose->p, Aii_transpose->i, Aii_transpose->x); 
+	       Aii_transpose->p, Aii_transpose->i, Aii_transpose->x); 
 
     // Computes new X = Ybar_T*Aii_transpose + rhoinv*I
     Xtemp->n = Amats[0]->m;
     Xtemp->m = Amats[0]->m;
     status = A_times_B_plus_rho(Amats[0]->m, 1,
-					  Ybar_T->x, Ybar_T->i, Ybar_T->p,
-					  Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
-					  Xtemp->x, Xtemp->i, Xtemp->p,
-					  ceil(Xtemp->n*Xtemp->m/2+Xtemp->n)+10, &rho_inv_vec[(N0)*nx_ny]);
+				Ybar_T->x, Ybar_T->i, Ybar_T->p,
+				Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
+				Xtemp->x, Xtemp->i, Xtemp->p,
+				ceil(Xtemp->n*Xtemp->m/2+Xtemp->n)+10, &rho_inv_vec[(N0)*nx_ny]);
     
     if (status) {
-	    printf("Could not complete X =  -rhoinv - Ai*Ybar_ij\n");
-	    return -1;
+	printf("Could not complete X =  -rhoinv - Ai*Ybar_ij\n");
+	return -1;
     }
 
 
@@ -1222,8 +1219,8 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
 	// Subtract bottom nx rows of Ybar_T from top of X
 	// Ybar_T = Ybar given in row major format - bottom nx rows = rightmost nx?
 	A_minus_B(ny, ny+nx, Xtemp->n, 
-				 Xtemp->p, Xtemp->i, Xtemp->x,
-				 Ybar_T->p, Ybar_T->i, Ybar_T->x );
+		  Xtemp->p, Xtemp->i, Xtemp->x,
+		  Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
 	memset(Aij_f, 0, Amats[iter]->n*Amats[iter]->m*sizeof(c_float));
 	copy_csc_transpose(Amats[iter], Aij_f);
@@ -1243,10 +1240,10 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
 	Xtemp->n = Amats[iter]->m;
 	Xtemp->m = Amats[iter]->m;
 	status = A_times_B_plus_rho(Amats[iter]->m, 1,
-					      Ybar_T->x, Ybar_T->i, Ybar_T->p,
-					      Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
-					      Xtemp->x, Xtemp->i, Xtemp->p,
-					      nx_ny*nx_ny/2+nx_ny, &rho_inv_vec[(iter)*nx_ny]);
+				    Ybar_T->x, Ybar_T->i, Ybar_T->p,
+				    Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
+				    Xtemp->x, Xtemp->i, Xtemp->p,
+				    nx_ny*nx_ny/2+nx_ny, &rho_inv_vec[(iter)*nx_ny]);
 	if (status) {
 	    printf("Could not complete X =  -rhoinv - Ai*Ybar_ij\n");
 	    return -1;
@@ -1267,15 +1264,15 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
     //for(i=0;i<QN->n;i++) Pmat[perm_count++] = P_count++; // (even) add nx
     copy_csc_plus_sigma(Qmats[Niter], Xtemp, sigma);
     A_minus_B(ny, ny+nx, nx, Xtemp->p, Xtemp->i, Xtemp->x,
-			                 Ybar_T->p, Ybar_T->i, Ybar_T->x );
+	      Ybar_T->p, Ybar_T->i, Ybar_T->x );
 
     memset(Aij_f, 0, nt*nx*sizeof(c_float));
     copy_csc_transpose(Amats[Niter], Aij_f);
     
     pivot_even(Xtemp, Ybar_T,  YbartL0,
-	           Aij_f, Lmat, Dinv,
+	       Aij_f, Lmat, Dinv,
                nx, nt, &Lmat_ptr, Lmat_col,
-	            Pmat, &perm_count, &P_count);
+	       Pmat, &perm_count, &P_count);
     Lmat_col += Xtemp->n;
     // Only include upper diagonal items...
     // For next X: need AN' and Ybar from previous solution
@@ -1291,10 +1288,10 @@ static c_int LDL_factorize_recursive(csc * Lmat, c_float * Dinv, c_int *Pmat, cs
                Aii_transpose->p, Aii_transpose->i, Aii_transpose->x);
     
     A_times_B_plus_rho(nt, 1,
-				 Ybar_T->x, Ybar_T->i, Ybar_T->p,
-				 Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
-				 Xtemp->x, Xtemp->i, Xtemp->p,
-				 nt*nt/2+nt, &rho_inv_vec[(Nmax-1)*nx_ny]);
+		       Ybar_T->x, Ybar_T->i, Ybar_T->p,
+		       Aii_transpose->x, Aii_transpose->i, Aii_transpose->p,
+		       Xtemp->x, Xtemp->i, Xtemp->p,
+		       nt*nt/2+nt, &rho_inv_vec[(Nmax-1)*nx_ny]);
     Xtemp->n = nt;
     Xtemp->m = nt;
 
@@ -1345,16 +1342,6 @@ void get_L_dimensions(OSQPWorkspace* work, c_int *n, c_int *m, c_int *nnz){
     get_L_dimensions_from_solver(work->linsys_solver, n, m, nnz);
 }
 
-void get_permutation_matrix_from_solver(qdldl_solver * s){
-    printf("Perm = zeros(%i, 1);\n", s->L->n);
-    for(int i=0;i<s->L->n;i++){
-        printf("Perm(%i,1) = %i;\n", i+1 , s->P[i]+1);
-    }
-}
-
-void get_permutation_matrix(OSQPWorkspace* work){
-    get_permutation_matrix_from_solver(work->linsys_solver);
-}
 
 void compute_permutations(qdldl_solver * s, c_int n, c_int m, c_int N, 
 			  const csc * Q0, const csc * Qi, const csc * QN, 
@@ -1378,9 +1365,9 @@ void compute_permutations(qdldl_solver * s, c_int n, c_int m, c_int N,
 
 
 void compute_KKT_permutations(qdldl_solver * s, c_int n, c_int m,  c_int P_nnz_max, c_int A_nnz_max, 
-                               c_int N, 
-                               const csc * Q0, const csc * Qi, const csc * QN, 
-                               const csc * A0, const csc * Ai, const csc * Aij, const csc * AN){
+			      c_int N, 
+			      const csc * Q0, const csc * Qi, const csc * QN, 
+			      const csc * A0, const csc * Ai, const csc * Aij, const csc * AN){
     c_int i, count=0, A_count=n, P_count=0;
 
     // Allocate vector of indices on the diagonal. Worst case it has m elements
@@ -1388,268 +1375,179 @@ void compute_KKT_permutations(qdldl_solver * s, c_int n, c_int m,  c_int P_nnz_m
 	(*s->Pdiag_idx) = c_malloc(n * sizeof(c_int));
 	s->Pdiag_n     = 0; // Set 0 diagonal elements to start
     }
-
-    // PERMUTATION VECTOR P: A1 = A[P,P]  =============================================
-
-
-    /*
-    compute_permutations(s, n, m, 
-                         N, Q0, Qi, QN,  A0,  Ai, Aij, AN);
-    */
-
-
-    /*
-    // PERMUTATION VECTORS ============================================================
-    c_int  zKKT = 0;        // Counter for total number of elements in P and in
-    // Initial cost Q0 ============================================================
-    for (c_int j = 0; j < Q0->n; j++) { // cycle over columns in Q0
-        // No elements in column j => add diagonal element param1
-        if (Q0->p[j] == Q0->p[j + 1]) zKKT++;
-        for (c_int ptr = Q0->p[j]; ptr < Q0->p[j + 1]; ptr++) { // cycle over rows
-            if (s->PtoKKT != OSQP_NULL) s->PtoKKT[ptr] = zKKT;  
-            if (Q0->i[ptr] == j) { // P has a diagonal element,
-		// If index vector pointer supplied -> Store the index
-		if (s->Pdiag_idx != OSQP_NULL) {
-		    (s->Pdiag_idx)[s->Pdiag_n] = ptr;
-		    (s->Pdiag_n)++;
-		} 
-            }
-            zKKT++;
-            // Add diagonal param1 in case last element of column j
-            if ((Q0->i[ptr] < j) && (ptr + 1 == Q0->p[j + 1])) zKKT++;
-        }
-    }
-
-    // Initial constraint A0 ============================================================
-    for (c_int j = 0; j < A0->n; j++) {                      // Cycle over columns of A: should this be the rows? A'?
-        for (c_int ptr = A0->p[j]; ptr < A0->p[j + 1]; ptr++) {
-	    if (s->AtoKKT != OSQP_NULL) s->AtoKKT[ptr] = zKKT;  // Update index from A to KKTtrip
-	    zKKT++;
-        }
-
-        if (s->rhotoKKT != OSQP_NULL) s->rhotoKKT[j] = zKKT;  // Update index from  param2 to KKTtrip
-        zKKT++;
-    }
-
-    //  BEGIN ITERATIONS =================================================================
-    for (c_int iter=0;iter<N-1;iter++){
-	// cycle over columns in Aij/Qi
-        for (c_int j = 0; j < Aij->n; j++) {
-            // Aij  
-            for (c_int ptr = Aij->p[j]; ptr < Aij->p[j + 1]; ptr++) {
-                if (s->AtoKKT != OSQP_NULL) s->AtoKKT[ptr] = zKKT;  // Update index from A to KKTtrip
-                zKKT++;
-            }
-
-            // Qi
-            if (Qi->p[j] == Qi->p[j + 1]) zKKT++;
-            for (c_int ptr = Qi->p[j]; ptr < Qi->p[j + 1]; ptr++) { // cycle over rows
-                if (s->PtoKKT != OSQP_NULL) s->PtoKKT[ptr] = zKKT;  // Update index from P to
-                zKKT++;
-                // Add diagonal param1 in case last element of column j
-                if ((Qi->i[ptr] < j) && (ptr + 1 == Qi->p[j + 1])) zKKT++;
-            }
-        }
-
-
-	// cycle over columns in Ai/rhoinv
-        // Ai
-        for (c_int j = 0; j < Ai->n; j++) {                    
-            // Ai: should this be the transpose?
-            for (c_int ptr = Ai->p[j]; ptr < Ai->p[j + 1]; ptr++) {
-                if (s->AtoKKT != OSQP_NULL) s->AtoKKT[ptr] = zKKT;  // Update index from A to KKTtrip
-                zKKT++;
-            }
-            // rhoinv*I only adds one each column. 
-            if (s->rhotoKKT != OSQP_NULL) s->rhotoKKT[j] = zKKT;  // Update index from  param2 to KKTtrip
-            zKKT++;
-        }
-    }
-    */
 }
-
-void print_P_matrix(qdldl_solver * s){
-    printf("* print_P_matrix()\n");
-    for(c_int i=0;i<20;i++){
-        //s->P[i] = 2*i;
-        printf("P[%i] = %i\n", i, s->P[i]);
-
-    }
-}
-
-
 
 csc* form_KKT_permuted(const csc  *P,
-              const  csc *A,
-              c_int       format,
-              c_float     param1,
-              c_float    *param2,
-              c_int      *PtoKKT,
-              c_int      *AtoKKT,
-              c_int     **Pdiag_idx,
-              c_int      *Pdiag_n,
-              c_int      *param2toKKT) {
-  c_int  nKKT, nnzKKTmax; // Size, number of nonzeros and max number of nonzeros
-                          // in KKT matrix
-  csc   *KKT_trip, *KKT;  // KKT matrix in triplet format and CSC format
-  c_int  ptr, i, j;       // Counters for elements (i,j) and index pointer
-  c_int  zKKT = 0;        // Counter for total number of elements in P and in
-                          // KKT
-  c_int *KKT_TtoC;        // Pointer to vector mapping from KKT in triplet form
-                          // to CSC
+		       const  csc *A,
+		       c_int       format,
+		       c_float     param1,
+		       c_float    *param2,
+		       c_int      *PtoKKT,
+		       c_int      *AtoKKT,
+		       c_int     **Pdiag_idx,
+		       c_int      *Pdiag_n,
+		       c_int      *param2toKKT) {
+    c_int  nKKT, nnzKKTmax; // Size, number of nonzeros and max number of nonzeros
+    // in KKT matrix
+    csc   *KKT_trip, *KKT;  // KKT matrix in triplet format and CSC format
+    c_int  ptr, i, j;       // Counters for elements (i,j) and index pointer
+    c_int  zKKT = 0;        // Counter for total number of elements in P and in
+    // KKT
+    c_int *KKT_TtoC;        // Pointer to vector mapping from KKT in triplet form
+    // to CSC
 
-  // Get matrix dimensions
-  nKKT = P->m + A->m;
+    // Get matrix dimensions
+    nKKT = P->m + A->m;
 
-  // Get maximum number of nonzero elements (only upper triangular part)
-  nnzKKTmax = P->p[P->n] + // Number of elements in P
-              P->m +       // Number of elements in param1 * I
-              A->p[A->n] + // Number of nonzeros in A
-              A->m;        // Number of elements in - diag(param2)
+    // Get maximum number of nonzero elements (only upper triangular part)
+    nnzKKTmax = P->p[P->n] + // Number of elements in P
+	P->m +       // Number of elements in param1 * I
+	A->p[A->n] + // Number of nonzeros in A
+	A->m;        // Number of elements in - diag(param2)
 
-  // Preallocate KKT matrix in triplet format
-  KKT_trip = csc_spalloc(nKKT, nKKT, nnzKKTmax, 1, 1);
+    // Preallocate KKT matrix in triplet format
+    KKT_trip = csc_spalloc(nKKT, nKKT, nnzKKTmax, 1, 1);
 
-  if (!KKT_trip) return OSQP_NULL;  // Failed to preallocate matrix
+    if (!KKT_trip) return OSQP_NULL;  // Failed to preallocate matrix
 
-  // Allocate vector of indices on the diagonal. Worst case it has m elements
-  if (Pdiag_idx != OSQP_NULL) {
-    (*Pdiag_idx) = c_malloc(P->m * sizeof(c_int));
-    *Pdiag_n     = 0; // Set 0 diagonal elements to start
-  }
-
-  // Allocate Triplet matrices
-  // P + param1 I
-  for (j = 0; j < P->n; j++) { // cycle over columns
-    // No elements in column j => add diagonal element param1
-    if (P->p[j] == P->p[j + 1]) {
-      KKT_trip->i[zKKT] = j;
-      KKT_trip->p[zKKT] = j;
-      KKT_trip->x[zKKT] = param1;
-      zKKT++;
+    // Allocate vector of indices on the diagonal. Worst case it has m elements
+    if (Pdiag_idx != OSQP_NULL) {
+	(*Pdiag_idx) = c_malloc(P->m * sizeof(c_int));
+	*Pdiag_n     = 0; // Set 0 diagonal elements to start
     }
 
-    for (ptr = P->p[j]; ptr < P->p[j + 1]; ptr++) { // cycle over rows
-      // Get current row
-      i = P->i[ptr];
+    // Allocate Triplet matrices
+    // P + param1 I
+    for (j = 0; j < P->n; j++) { // cycle over columns
+	// No elements in column j => add diagonal element param1
+	if (P->p[j] == P->p[j + 1]) {
+	    KKT_trip->i[zKKT] = j;
+	    KKT_trip->p[zKKT] = j;
+	    KKT_trip->x[zKKT] = param1;
+	    zKKT++;
+	}
 
-      // Add element of P
-      KKT_trip->i[zKKT] = i;
-      KKT_trip->p[zKKT] = j;
-      KKT_trip->x[zKKT] = P->x[ptr];
+	for (ptr = P->p[j]; ptr < P->p[j + 1]; ptr++) { // cycle over rows
+	    // Get current row
+	    i = P->i[ptr];
 
-      if (PtoKKT != OSQP_NULL) PtoKKT[ptr] = zKKT;  // Update index from P to
-                                                    // KKTtrip
+	    // Add element of P
+	    KKT_trip->i[zKKT] = i;
+	    KKT_trip->p[zKKT] = j;
+	    KKT_trip->x[zKKT] = P->x[ptr];
 
-      if (i == j) {                                 // P has a diagonal element,
-                                                    // add param1
-        KKT_trip->x[zKKT] += param1;
+	    if (PtoKKT != OSQP_NULL) PtoKKT[ptr] = zKKT;  // Update index from P to
+	    // KKTtrip
 
-        // If index vector pointer supplied -> Store the index
-        if (Pdiag_idx != OSQP_NULL) {
-          (*Pdiag_idx)[*Pdiag_n] = ptr;
-          (*Pdiag_n)++;
-        }
-      }
-      zKKT++;
+	    if (i == j) {                                 // P has a diagonal element,
+		// add param1
+		KKT_trip->x[zKKT] += param1;
 
-      // Add diagonal param1 in case
-      if ((i < j) &&                  // Diagonal element not reached
-          (ptr + 1 == P->p[j + 1])) { // last element of column j
-        // Add diagonal element param1
-        KKT_trip->i[zKKT] = j;
-        KKT_trip->p[zKKT] = j;
-        KKT_trip->x[zKKT] = param1;
-        zKKT++;
-      }
-    }
-  }
+		// If index vector pointer supplied -> Store the index
+		if (Pdiag_idx != OSQP_NULL) {
+		    (*Pdiag_idx)[*Pdiag_n] = ptr;
+		    (*Pdiag_n)++;
+		}
+	    }
+	    zKKT++;
 
-  if (Pdiag_idx != OSQP_NULL) {
-    // Realloc Pdiag_idx so that it contains exactly *Pdiag_n diagonal elements
-    (*Pdiag_idx) = c_realloc((*Pdiag_idx), (*Pdiag_n) * sizeof(c_int));
-  }
-
-
-  // A' at top right
-  for (j = 0; j < A->n; j++) {                      // Cycle over columns of A
-    for (ptr = A->p[j]; ptr < A->p[j + 1]; ptr++) {
-      KKT_trip->p[zKKT] = P->m + A->i[ptr];         // Assign column index from
-                                                    // row index of A
-      KKT_trip->i[zKKT] = j;                        // Assign row index from
-                                                    // column index of A
-      KKT_trip->x[zKKT] = A->x[ptr];                // Assign A value element
-
-      if (AtoKKT != OSQP_NULL) AtoKKT[ptr] = zKKT;  // Update index from A to
-                                                    // KKTtrip
-      zKKT++;
-    }
-  }
-
-  // - diag(param2) at bottom right
-  for (j = 0; j < A->m; j++) {
-    KKT_trip->i[zKKT] = j + P->n;
-    KKT_trip->p[zKKT] = j + P->n;
-    KKT_trip->x[zKKT] = -param2[j];
-
-    if (param2toKKT != OSQP_NULL) param2toKKT[j] = zKKT;  // Update index from
-                                                          // param2 to KKTtrip
-    zKKT++;
-  }
-
-  // Allocate number of nonzeros
-  KKT_trip->nz = zKKT;
-
-  // Convert triplet matrix to csc format
-  if (!PtoKKT && !AtoKKT && !param2toKKT) {
-    // If no index vectors passed, do not store KKT mapping from Trip to CSC/CSR
-    if (format == 0) KKT = triplet_to_csc(KKT_trip, OSQP_NULL);
-    else KKT = triplet_to_csr(KKT_trip, OSQP_NULL);
-  }
-  else {
-    // Allocate vector of indices from triplet to csc
-    KKT_TtoC = c_malloc((zKKT) * sizeof(c_int));
-
-    if (!KKT_TtoC) {
-      // Error in allocating KKT_TtoC vector
-      csc_spfree(KKT_trip);
-      c_free(*Pdiag_idx);
-      return OSQP_NULL;
+	    // Add diagonal param1 in case
+	    if ((i < j) &&                  // Diagonal element not reached
+		(ptr + 1 == P->p[j + 1])) { // last element of column j
+		// Add diagonal element param1
+		KKT_trip->i[zKKT] = j;
+		KKT_trip->p[zKKT] = j;
+		KKT_trip->x[zKKT] = param1;
+		zKKT++;
+	    }
+	}
     }
 
-    // Store KKT mapping from Trip to CSC/CSR
-    if (format == 0)
-      KKT = triplet_to_csc(KKT_trip, KKT_TtoC);
-    else
-      KKT = triplet_to_csr(KKT_trip, KKT_TtoC);
-
-    // Update vectors of indices from P, A, param2 to KKT (now in CSC format)
-    if (PtoKKT != OSQP_NULL) {
-      for (i = 0; i < P->p[P->n]; i++) {
-        PtoKKT[i] = KKT_TtoC[PtoKKT[i]];
-      }
+    if (Pdiag_idx != OSQP_NULL) {
+	// Realloc Pdiag_idx so that it contains exactly *Pdiag_n diagonal elements
+	(*Pdiag_idx) = c_realloc((*Pdiag_idx), (*Pdiag_n) * sizeof(c_int));
     }
 
-    if (AtoKKT != OSQP_NULL) {
-      for (i = 0; i < A->p[A->n]; i++) {
-        AtoKKT[i] = KKT_TtoC[AtoKKT[i]];
-      }
+
+    // A' at top right
+    for (j = 0; j < A->n; j++) {                      // Cycle over columns of A
+	for (ptr = A->p[j]; ptr < A->p[j + 1]; ptr++) {
+	    KKT_trip->p[zKKT] = P->m + A->i[ptr];         // Assign column index from
+	    // row index of A
+	    KKT_trip->i[zKKT] = j;                        // Assign row index from
+	    // column index of A
+	    KKT_trip->x[zKKT] = A->x[ptr];                // Assign A value element
+
+	    if (AtoKKT != OSQP_NULL) AtoKKT[ptr] = zKKT;  // Update index from A to
+	    // KKTtrip
+	    zKKT++;
+	}
     }
 
-    if (param2toKKT != OSQP_NULL) {
-      for (i = 0; i < A->m; i++) {
-        param2toKKT[i] = KKT_TtoC[param2toKKT[i]];
-      }
+    // - diag(param2) at bottom right
+    for (j = 0; j < A->m; j++) {
+	KKT_trip->i[zKKT] = j + P->n;
+	KKT_trip->p[zKKT] = j + P->n;
+	KKT_trip->x[zKKT] = -param2[j];
+
+	if (param2toKKT != OSQP_NULL) param2toKKT[j] = zKKT;  // Update index from
+	// param2 to KKTtrip
+	zKKT++;
     }
 
-    // Free mapping
-    c_free(KKT_TtoC);
-  }
+    // Allocate number of nonzeros
+    KKT_trip->nz = zKKT;
 
-  // Clean matrix in triplet format and return result
-  csc_spfree(KKT_trip);
+    // Convert triplet matrix to csc format
+    if (!PtoKKT && !AtoKKT && !param2toKKT) {
+	// If no index vectors passed, do not store KKT mapping from Trip to CSC/CSR
+	if (format == 0) KKT = triplet_to_csc(KKT_trip, OSQP_NULL);
+	else KKT = triplet_to_csr(KKT_trip, OSQP_NULL);
+    }
+    else {
+	// Allocate vector of indices from triplet to csc
+	KKT_TtoC = c_malloc((zKKT) * sizeof(c_int));
 
-  return KKT;
+	if (!KKT_TtoC) {
+	    // Error in allocating KKT_TtoC vector
+	    csc_spfree(KKT_trip);
+	    c_free(*Pdiag_idx);
+	    return OSQP_NULL;
+	}
+
+	// Store KKT mapping from Trip to CSC/CSR
+	if (format == 0)
+	    KKT = triplet_to_csc(KKT_trip, KKT_TtoC);
+	else
+	    KKT = triplet_to_csr(KKT_trip, KKT_TtoC);
+
+	// Update vectors of indices from P, A, param2 to KKT (now in CSC format)
+	if (PtoKKT != OSQP_NULL) {
+	    for (i = 0; i < P->p[P->n]; i++) {
+		PtoKKT[i] = KKT_TtoC[PtoKKT[i]];
+	    }
+	}
+
+	if (AtoKKT != OSQP_NULL) {
+	    for (i = 0; i < A->p[A->n]; i++) {
+		AtoKKT[i] = KKT_TtoC[AtoKKT[i]];
+	    }
+	}
+
+	if (param2toKKT != OSQP_NULL) {
+	    for (i = 0; i < A->m; i++) {
+		param2toKKT[i] = KKT_TtoC[param2toKKT[i]];
+	    }
+	}
+
+	// Free mapping
+	c_free(KKT_TtoC);
+    }
+
+    // Clean matrix in triplet format and return result
+    csc_spfree(KKT_trip);
+
+    return KKT;
 }
 
 
@@ -1957,10 +1855,10 @@ c_int setup_AP_matrices_initial_N(OSQPData * data, c_int Nmax, c_int N, c_int nx
     // Add last A (for iter=N-2, excluding Ai)
     for (c_int i=0; i<Aij->n;i++){
 	data->A->p[A_col+i] = nz_A;
-            for (c_int j=Aij->p[i];j<Aij->p[i+1];j++){
-                data->A->i[nz_A] = A_row + Aij->i[j];
-                data->A->x[nz_A++] = Aij->x[j];
-            }
+	for (c_int j=Aij->p[i];j<Aij->p[i+1];j++){
+	    data->A->i[nz_A] = A_row + Aij->i[j];
+	    data->A->x[nz_A++] = Aij->x[j];
+	}
     }
     A_row += Aij->m;
     A_col += Aij->n;
@@ -2558,11 +2456,11 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
 	return osqp_error(OSQP_MEM_ALLOC_ERROR);
     
     /*
-    work->data->n = (N-1)*(nx+nu)+nu;
-    work->data->m = (N-1)*(nx+ny);
-    if (validate_data(work->data)) return osqp_error(OSQP_DATA_VALIDATION_ERROR);
-    work->data->n = n;
-    work->data->m = m;
+      work->data->n = (N-1)*(nx+nu)+nu;
+      work->data->m = (N-1)*(nx+ny);
+      if (validate_data(work->data)) return osqp_error(OSQP_DATA_VALIDATION_ERROR);
+      work->data->n = n;
+      work->data->m = m;
     */
     // Type of constraints
     work->constr_type = c_calloc(data->m, sizeof(c_int));
@@ -2767,7 +2665,7 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
 
 
     if (factor_status == -1) {
-      return osqp_error(OSQP_DATA_VALIDATION_ERROR);
+	return osqp_error(OSQP_DATA_VALIDATION_ERROR);
     }
     
 
@@ -2785,7 +2683,7 @@ c_int osqp_setup_combine_recursive(OSQPWorkspace** workp, OSQPDataRLDL *data_rld
     update_AP_matrices( data_rldl, work->data, data_rldl->Nx-1, (data_rldl->N));
 
     if (exitflag) {
-      return osqp_error(exitflag);
+	return osqp_error(exitflag);
     }
     // Initialize active constraints structure
     work->pol = c_malloc(sizeof(OSQPPolish));
@@ -2947,7 +2845,7 @@ c_int osqp_update_Z_horizon(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
 				 etree, bwork, iwork, fwork);
 
     if (factor_status == -1) {
-      return osqp_error(OSQP_DATA_VALIDATION_ERROR);
+	return osqp_error(OSQP_DATA_VALIDATION_ERROR);
     }
 
     // Fill in the rest of the L and D matrices:
