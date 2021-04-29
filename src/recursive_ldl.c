@@ -1513,7 +1513,6 @@ csc* form_KKT_permuted(const csc  *P,
 	    c_free(*Pdiag_idx);
 	    return OSQP_NULL;
 	}
-
 	// Store KKT mapping from Trip to CSC/CSR
 	if (format == 0)
 	    KKT = triplet_to_csc(KKT_trip, KKT_TtoC);
