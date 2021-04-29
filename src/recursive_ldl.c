@@ -135,7 +135,6 @@ c_int osqp_partial_update_bounds(OSQPWorkspace *work, c_int start, c_int stop,
 
     // Check if lower bound is smaller than upper bound
     for (i = 0; i < stop-start; i++) {
-	
 	if (l_new[i] > u_new[i]) {
 #ifdef PRINTING
 	    printf("lower bound must be lower than or equal to upper bound\n");
@@ -966,17 +965,17 @@ static c_int LDL_update_from_pivot(csc * Lmat, c_float * Dinv, c_int *Pmat, csc 
     } else if (deltaN<0)  {     // Reduced horizon
         iter_start = Nnew-1;
     } else return -1;
-
     // The column and pointer to continue from in L
     Lmat_col = Qmats[0]->n + (iter_start-N0)*(Qmats[1]->m + Amats[1]->m);
     Lmat_ptr = Lmat->p[Lmat_col];
-
 
     // Permutation matrix changed: Before A started at Nold*(nx+nu), now at Nnew*(nx+nu)
     // All A values gets new values. Q only gets new values if deltaN>0
     c_int perm_count = Qmats[0]->n;
     // Cannot know shift without assuming all Qi are same size
-    c_int A_count = Nnew*(Qmats[1]->m); 
+    //c_int A_count = Nnew*(Qmats[1]->m);
+    c_int A_count = 0;
+    for (int i=N0;i<=Nnew;i++)  A_count += Qmats[i]->m;
     c_int P_count = Qmats[0]->m + iter_start*(Qmats[1]->m);
     
 
@@ -1702,7 +1701,7 @@ c_int update_AP_matrices(OSQPDataRLDL * data_rldl, OSQPData * data, c_int Nold, 
 
 
     if (Nnew < Nold) {  // Return last few columns
-        Ntemp = Nnew -2;
+        Ntemp = Nnew -1;
         P_row = nu + Ntemp*(nx+nu);
         P_col = nu + Ntemp*(nx+nu);
         A_row = Ntemp*(nx+ny);
@@ -1994,7 +1993,7 @@ c_int osqp_update_recursive(OSQPWorkspace* work, OSQPDataRLDL *data_rldl, c_int 
 			N*(data_rldl->nx+data_rldl->nu),
 			N*(data_rldl->nx+data_rldl->ny)+data_rldl->nt);
 
-    for (int i=data_rldl->N-1;i<N;i++) {
+    for (int i=data_rldl->N;i<N;i++) {
         data_rldl->Amats[i] = data_rldl->Ai;
         data_rldl->Qmats[i] = data_rldl->Qi;
     }
