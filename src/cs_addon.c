@@ -349,8 +349,8 @@ void A_minus_B(c_int start_col, c_int stop_col, c_int n,
 
     // Save new result in C matrix
     c_int   Cp[n+1];
-    c_int   Ci[Ap[n]+Bp[n]]; 
-    c_float Cx[Ap[n]+Bp[n]];
+    c_int   Ci[Ap[n]+Bp[stop_col]]; 
+    c_float Cx[Ap[n]+Bp[stop_col]];
 
     // First: loop over initial columns
     int A_ptr, B_ptr, Amax, Bmax;
