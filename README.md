@@ -1,3 +1,6 @@
+# NOTE
+This is my edited version of the solver with a recursive LDL formulation. Examples on how to run the code can be found in [https://github.com/laperss/vh-mpc-example](https://github.com/laperss/vh-mpc-example). 
+
 # The Operator Splitting QP Solver
 
 [![Build status of the master branch on Linux/OSX](https://img.shields.io/travis/oxfordcontrol/osqp/master.svg?label=Linux%20%2F%20OSX%20build)](https://travis-ci.org/oxfordcontrol/osqp)
